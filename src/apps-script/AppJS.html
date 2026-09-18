@@ -1,0 +1,27 @@
+<script>
+/**
+ * AppJS.html - Client dispatcher for Google Apps Script HTML Service
+ * Dispatches to google.script.run when running inside Apps Script
+ */
+window.AppsScriptBridge = {
+  call: function(functionName, args, callback, errorCallback) {
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+      var runner = google.script.run
+        .withSuccessHandler(function(res) {
+          if (callback) callback(res);
+        })
+        .withFailureHandler(function(err) {
+          if (errorCallback) errorCallback(err);
+          else alert('Kesalahan Server: ' + (err.message || err));
+        });
+      if (typeof runner[functionName] === 'function') {
+        runner[functionName].apply(runner, args || []);
+      } else {
+        console.error('Function not found on google.script.run: ' + functionName);
+      }
+    } else {
+      console.warn('google.script.run not available in this environment');
+    }
+  }
+};
+</script>

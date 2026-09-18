@@ -1,0 +1,6 @@
+{
+  "name": "Aplikasi Ujian Online Mahasiswa",
+  "description": "Sistem ujian online mahasiswa dengan Google Apps Script & Google Sheets, bank soal, auto/manual grading, anti-cheat monitoring, export XLSX, dan reset respons.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

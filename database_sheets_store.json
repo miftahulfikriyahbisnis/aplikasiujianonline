@@ -1,0 +1,753 @@
+{
+  "SETTINGS": [
+    {
+      "Setting_Key": "ADMIN_PIN",
+      "Setting_Value": "123456",
+      "Description": "PIN masuk dashboard admin",
+      "Updated_At": "2026-09-17T10:09:46.514Z"
+    },
+    {
+      "Setting_Key": "DEFAULT_DURATION_MINUTES",
+      "Setting_Value": "60",
+      "Description": "Durasi ujian default (menit)",
+      "Updated_At": "2026-09-17T10:09:46.514Z"
+    },
+    {
+      "Setting_Key": "DEFAULT_RETENTION_DAYS",
+      "Setting_Value": "14",
+      "Description": "Masa simpan respons default (hari)",
+      "Updated_At": "2026-09-17T10:09:46.514Z"
+    },
+    {
+      "Setting_Key": "AUTOSAVE_INTERVAL_SECONDS",
+      "Setting_Value": "25",
+      "Description": "Interval autosave batch frontend (detik)",
+      "Updated_At": "2026-09-17T10:09:46.514Z"
+    },
+    {
+      "Setting_Key": "ANTI_CHEAT_ENABLED",
+      "Setting_Value": "true",
+      "Description": "Aktifkan deteksi tab/window blur",
+      "Updated_At": "2026-09-17T10:09:46.514Z"
+    },
+    {
+      "Setting_Key": "FULLSCREEN_REQUIRED",
+      "Setting_Value": "true",
+      "Description": "Wajibkan fullscreen saat ujian",
+      "Updated_At": "2026-09-17T10:09:46.514Z"
+    },
+    {
+      "Setting_Key": "APPS_SCRIPT_API_URL",
+      "Setting_Value": "https://script.google.com/macros/s/AKfycbxdUFBK1CSvaU70tn210cuYOlQAGD9lQzzkhjD4I5RlZjm0DIhVNpg1Wnb_Z_ktG6if/exec",
+      "Description": "URL Web App Google Apps Script",
+      "Updated_At": "2026-09-17T10:09:46.514Z"
+    }
+  ],
+  "USERS": [
+    {
+      "User_ID": "USR-ADMIN",
+      "NIM": "ADMIN01",
+      "Full_Name": "Dosen Koordinator Ujian",
+      "Email": "dosen@kampus.ac.id",
+      "Class_Name": "Staf Pengajar",
+      "Role": "ADMIN",
+      "Is_Active": true,
+      "Created_At": "2026-09-17T10:09:46.514Z",
+      "Updated_At": "2026-09-17T10:09:46.514Z"
+    },
+    {
+      "User_ID": "USR-STU001",
+      "NIM": "220101001",
+      "Full_Name": "Ahmad Fauzi",
+      "Email": "ahmad.fauzi@student.kampus.ac.id",
+      "Class_Name": "Kelas A",
+      "Role": "STUDENT",
+      "Is_Active": true,
+      "Created_At": "2026-09-17T10:09:46.514Z",
+      "Updated_At": "2026-09-17T10:09:46.514Z"
+    },
+    {
+      "User_ID": "USR-STU002",
+      "NIM": "220101002",
+      "Full_Name": "Siti Nurhaliza",
+      "Email": "siti.nurhaliza@student.kampus.ac.id",
+      "Class_Name": "Kelas A",
+      "Role": "STUDENT",
+      "Is_Active": true,
+      "Created_At": "2026-09-17T10:09:46.514Z",
+      "Updated_At": "2026-09-17T10:09:46.514Z"
+    },
+    {
+      "User_ID": "USR-STU003",
+      "NIM": "220101003",
+      "Full_Name": "Budi Santoso",
+      "Email": "budi.santoso@student.kampus.ac.id",
+      "Class_Name": "Kelas B",
+      "Role": "STUDENT",
+      "Is_Active": true,
+      "Created_At": "2026-09-17T10:09:46.514Z",
+      "Updated_At": "2026-09-17T10:09:46.514Z"
+    },
+    {
+      "User_ID": "USR-20260917-100949-89LR",
+      "NIM": "23030244001",
+      "Full_Name": "Mahasiswa 23030244001",
+      "Class_Name": "Kelas Reguler",
+      "Role": "STUDENT",
+      "Is_Active": true,
+      "Created_At": "2026-09-17T10:09:49.853Z",
+      "Updated_At": "2026-09-17T10:09:49.853Z"
+    },
+    {
+      "User_ID": "USR-20260917-101158-4DCS",
+      "NIM": "23030244002",
+      "Full_Name": "Budi Santoso",
+      "Class_Name": "Kelas A",
+      "Role": "STUDENT",
+      "Is_Active": true,
+      "Created_At": "2026-09-17T10:11:58.212Z",
+      "Updated_At": "2026-09-17T10:11:58.212Z"
+    },
+    {
+      "User_ID": "USR-20260917-164732-SOKF",
+      "NIM": "1234",
+      "Full_Name": "miftahul f",
+      "Class_Name": "Kelas A",
+      "Role": "STUDENT",
+      "Is_Active": true,
+      "Created_At": "2026-09-17T16:47:32.027Z",
+      "Updated_At": "2026-09-17T16:47:32.027Z"
+    },
+    {
+      "User_ID": "USR-20260917-172355-JD8J",
+      "NIM": "123",
+      "Full_Name": "miftah",
+      "Class_Name": "Kelas A",
+      "Role": "STUDENT",
+      "Is_Active": true,
+      "Created_At": "2026-09-17T17:23:55.171Z",
+      "Updated_At": "2026-09-17T17:23:55.171Z"
+    },
+    {
+      "User_ID": "USR-20260917-173100-RO4T",
+      "NIM": "12345",
+      "Full_Name": "ahmad fauzi",
+      "Class_Name": "Kelas A",
+      "Role": "STUDENT",
+      "Is_Active": true,
+      "Created_At": "2026-09-17T17:31:00.065Z",
+      "Updated_At": "2026-09-17T17:31:00.065Z"
+    },
+    {
+      "User_ID": "USR-20260917-173915-NWWA",
+      "NIM": "TEST001",
+      "Full_Name": "Miftah",
+      "Class_Name": "A",
+      "Role": "STUDENT",
+      "Is_Active": true,
+      "Created_At": "2026-09-17T17:39:15.516Z",
+      "Updated_At": "2026-09-17T17:39:15.516Z"
+    },
+    {
+      "User_ID": "USR-20260917-173937-VHCJ",
+      "NIM": "TEST999",
+      "Full_Name": "Siti Rahma",
+      "Class_Name": "A",
+      "Role": "STUDENT",
+      "Is_Active": true,
+      "Created_At": "2026-09-17T17:39:37.393Z",
+      "Updated_At": "2026-09-17T17:39:37.393Z"
+    }
+  ],
+  "COURSES": [
+    {
+      "Course_ID": "CRS001",
+      "Course_Code": "BIOKIM",
+      "Course_Name": "Biokimia",
+      "Description": "Mata Kuliah Wajib Biokimia",
+      "Status": "ACTIVE",
+      "Created_At": "2026-09-17T10:09:46.514Z",
+      "Updated_At": "2026-09-17T10:09:46.514Z"
+    },
+    {
+      "Course_ID": "CRS002",
+      "Course_Code": "IPK",
+      "Course_Name": "Inovasi Pembelajaran Kimia",
+      "Description": "Mata Kuliah Pedagogik & Inovasi Kimia",
+      "Status": "ACTIVE",
+      "Created_At": "2026-09-17T10:09:46.514Z",
+      "Updated_At": "2026-09-17T10:09:46.514Z"
+    },
+    {
+      "Course_ID": "CRS003",
+      "Course_Code": "TLAB",
+      "Course_Name": "Teknik Laboratorium",
+      "Description": "Keselamatan Kerja dan Instrumen Laboratorium",
+      "Status": "ACTIVE",
+      "Created_At": "2026-09-17T10:09:46.514Z",
+      "Updated_At": "2026-09-17T10:09:46.514Z"
+    },
+    {
+      "Course_ID": "CRS004",
+      "Course_Code": "KDBIO",
+      "Course_Name": "Kimia Dasar untuk Biologi",
+      "Description": "Konsep Kimia Dasar Mahasiswa Biologi",
+      "Status": "ACTIVE",
+      "Created_At": "2026-09-17T10:09:46.514Z",
+      "Updated_At": "2026-09-17T10:09:46.514Z"
+    }
+  ],
+  "TOPICS": [
+    {
+      "Topic_ID": "TPC001",
+      "Course_ID": "CRS001",
+      "Topic_Name": "Kinetika Enzim & Inhibisi",
+      "Description": "Mekanisme kerja enzim dan inhibisi kompetitif/nonkompetitif",
+      "Sort_Order": 1,
+      "Status": "ACTIVE",
+      "Created_At": "2026-09-17T10:09:46.514Z",
+      "Updated_At": "2026-09-17T10:09:46.514Z"
+    },
+    {
+      "Topic_ID": "TPC002",
+      "Course_ID": "CRS001",
+      "Topic_Name": "Metabolisme Karbohidrat",
+      "Description": "Glikolisis, Siklus Krebs, dan Rantai Transpor Elektron",
+      "Sort_Order": 2,
+      "Status": "ACTIVE",
+      "Created_At": "2026-09-17T10:09:46.514Z",
+      "Updated_At": "2026-09-17T10:09:46.514Z"
+    },
+    {
+      "Topic_ID": "TPC003",
+      "Course_ID": "CRS002",
+      "Topic_Name": "Media Pembelajaran Digital",
+      "Description": "Pengembangan media interaktif kimia",
+      "Sort_Order": 1,
+      "Status": "ACTIVE",
+      "Created_At": "2026-09-17T10:09:46.514Z",
+      "Updated_At": "2026-09-17T10:09:46.514Z"
+    },
+    {
+      "Topic_ID": "TPC004",
+      "Course_ID": "CRS003",
+      "Topic_Name": "K3 Laboratorium Kimia",
+      "Description": "MSDS, simbol bahaya, dan mitigasi tumpahan",
+      "Sort_Order": 1,
+      "Status": "ACTIVE",
+      "Created_At": "2026-09-17T10:09:46.514Z",
+      "Updated_At": "2026-09-17T10:09:46.514Z"
+    }
+  ],
+  "QUESTION_BANKS": [
+    {
+      "Bank_ID": "BNK001",
+      "Course_ID": "CRS001",
+      "Bank_Name": "Bank Soal UTS Biokimia 2026",
+      "Description": "Kumpulan soal UTS Enzim dan Karbohidrat",
+      "Status": "ACTIVE",
+      "Created_By": "ADMIN",
+      "Created_At": "2026-09-17T10:09:46.514Z",
+      "Updated_At": "2026-09-17T10:09:46.514Z"
+    },
+    {
+      "Bank_ID": "BNK002",
+      "Course_ID": "CRS003",
+      "Bank_Name": "Bank Soal K3 & Instrumen",
+      "Description": "Soal teknik penggunaan buret dan spektrofotometer",
+      "Status": "ACTIVE",
+      "Created_By": "ADMIN",
+      "Created_At": "2026-09-17T10:09:46.514Z",
+      "Updated_At": "2026-09-17T10:09:46.514Z"
+    }
+  ],
+  "QUESTIONS": [
+    {
+      "Question_ID": "Q001",
+      "Bank_ID": "BNK001",
+      "Topic_ID": "TPC001",
+      "Question_Type": "MCQ",
+      "Difficulty": "MEDIUM",
+      "Status": "ACTIVE",
+      "Current_Version_ID": "QV001",
+      "Created_By": "ADMIN",
+      "Created_At": "2026-09-17T10:09:46.514Z",
+      "Updated_At": "2026-09-17T10:09:46.514Z"
+    },
+    {
+      "Question_ID": "Q002",
+      "Bank_ID": "BNK001",
+      "Topic_ID": "TPC001",
+      "Question_Type": "MCQ",
+      "Difficulty": "EASY",
+      "Status": "ACTIVE",
+      "Current_Version_ID": "QV002",
+      "Created_By": "ADMIN",
+      "Created_At": "2026-09-17T10:09:46.514Z",
+      "Updated_At": "2026-09-17T10:09:46.514Z"
+    },
+    {
+      "Question_ID": "Q003",
+      "Bank_ID": "BNK001",
+      "Topic_ID": "TPC001",
+      "Question_Type": "ESSAY",
+      "Difficulty": "HARD",
+      "Status": "ACTIVE",
+      "Current_Version_ID": "QV003",
+      "Created_By": "ADMIN",
+      "Created_At": "2026-09-17T10:09:46.514Z",
+      "Updated_At": "2026-09-17T10:09:46.514Z"
+    }
+  ],
+  "QUESTION_VERSIONS": [
+    {
+      "Version_ID": "QV001",
+      "Question_ID": "Q001",
+      "Version_Number": 1,
+      "Question_Text": "Pada kinetika enzim Michaelis-Menten, apa pengaruh inhibitor kompetitif terhadap nilai Km dan Vmax?",
+      "Image_URL": "",
+      "Default_Points": 2,
+      "Answer_Guide": "",
+      "Explanation": "Inhibitor kompetitif bersaing dengan substrat pada sisi aktif enzim, sehingga Km meningkat sedangkan Vmax tetap.",
+      "Created_By": "ADMIN",
+      "Created_At": "2026-09-17T10:09:46.514Z"
+    },
+    {
+      "Version_ID": "QV002",
+      "Question_ID": "Q002",
+      "Version_Number": 1,
+      "Question_Text": "Koenzim manakah yang bertindak sebagai pembawa elektron utama pada reaksi glikolisis?",
+      "Image_URL": "",
+      "Default_Points": 2,
+      "Answer_Guide": "",
+      "Explanation": "NAD+ bertindak sebagai akseptor elektron tereduksi menjadi NADH.",
+      "Created_By": "ADMIN",
+      "Created_At": "2026-09-17T10:09:46.514Z"
+    },
+    {
+      "Version_ID": "QV003",
+      "Question_ID": "Q003",
+      "Version_Number": 1,
+      "Question_Text": "Jelaskan perbedaan mendasar antara inhibisi kompetitif dan non-kompetitif pada enzim ditinjau dari sisi ikatan dan pengaruh konsentrasi substrat!",
+      "Image_URL": "",
+      "Default_Points": 10,
+      "Answer_Guide": "Kriteria Penilaian:\n1. Sisi ikatan: Kompetitif berikatan di sisi aktif (identik dengan substrat), Non-kompetitif di sisi alosterik (skor 4).\n2. Pengaruh penambahan substrat: Pada kompetitif efek inhibisi dapat diatasi dengan meningkatkan konsentrasi substrat, pada non-kompetitif tidak dapat diatasi (skor 4).\n3. Kurva Lineweaver-Burk / parameter Km dan Vmax (skor 2).",
+      "Explanation": "Penilaian komprehensif mekanisme inhibitor.",
+      "Created_By": "ADMIN",
+      "Created_At": "2026-09-17T10:09:46.514Z"
+    }
+  ],
+  "OPTIONS": [
+    {
+      "Option_ID": "OPT001",
+      "Version_ID": "QV001",
+      "Option_Key": "A",
+      "Option_Text": "Km meningkat, Vmax tetap",
+      "Is_Correct": true,
+      "Sort_Order": 1
+    },
+    {
+      "Option_ID": "OPT002",
+      "Version_ID": "QV001",
+      "Option_Key": "B",
+      "Option_Text": "Km tetap, Vmax menurun",
+      "Is_Correct": false,
+      "Sort_Order": 2
+    },
+    {
+      "Option_ID": "OPT003",
+      "Version_ID": "QV001",
+      "Option_Key": "C",
+      "Option_Text": "Km menurun, Vmax menurun",
+      "Is_Correct": false,
+      "Sort_Order": 3
+    },
+    {
+      "Option_ID": "OPT004",
+      "Version_ID": "QV001",
+      "Option_Key": "D",
+      "Option_Text": "Km dan Vmax tidak berubah",
+      "Is_Correct": false,
+      "Sort_Order": 4
+    },
+    {
+      "Option_ID": "OPT005",
+      "Version_ID": "QV002",
+      "Option_Key": "A",
+      "Option_Text": "NAD+",
+      "Is_Correct": true,
+      "Sort_Order": 1
+    },
+    {
+      "Option_ID": "OPT006",
+      "Version_ID": "QV002",
+      "Option_Key": "B",
+      "Option_Text": "FAD",
+      "Is_Correct": false,
+      "Sort_Order": 2
+    },
+    {
+      "Option_ID": "OPT007",
+      "Version_ID": "QV002",
+      "Option_Key": "C",
+      "Option_Text": "NADP+",
+      "Is_Correct": false,
+      "Sort_Order": 3
+    },
+    {
+      "Option_ID": "OPT008",
+      "Version_ID": "QV002",
+      "Option_Key": "D",
+      "Option_Text": "Koenzim Q",
+      "Is_Correct": false,
+      "Sort_Order": 4
+    }
+  ],
+  "EXAMS": [
+    {
+      "Exam_ID": "EXM001",
+      "Course_ID": "CRS001",
+      "Exam_Name": "UTS Biokimia Teori Genap 2026",
+      "Instructions": "Kerjakan soal pilihan ganda dan essay dengan teliti. Dilarang berpindah tab atau keluar fullscreen selama ujian.",
+      "Duration_Minutes": 60,
+      "Shuffle_Questions": false,
+      "Shuffle_Options": false,
+      "Anti_Cheat_Enabled": true,
+      "Fullscreen_Required": true,
+      "Response_Retention_Days": 14,
+      "Status": "PUBLISHED",
+      "Created_By": "ADMIN",
+      "Created_At": "2026-09-17T10:09:46.514Z",
+      "Updated_At": "2026-09-17T10:09:46.514Z"
+    }
+  ],
+  "EXAM_QUESTIONS": [
+    {
+      "Exam_Question_ID": "EQ001",
+      "Exam_ID": "EXM001",
+      "Version_ID": "QV001",
+      "Question_Number": 1,
+      "Points": 2,
+      "Is_Required": true
+    },
+    {
+      "Exam_Question_ID": "EQ002",
+      "Exam_ID": "EXM001",
+      "Version_ID": "QV002",
+      "Question_Number": 2,
+      "Points": 2,
+      "Is_Required": true
+    },
+    {
+      "Exam_Question_ID": "EQ003",
+      "Exam_ID": "EXM001",
+      "Version_ID": "QV003",
+      "Question_Number": 3,
+      "Points": 10,
+      "Is_Required": true
+    }
+  ],
+  "EXAM_RUNS": [
+    {
+      "Run_ID": "RUN001",
+      "Exam_ID": "EXM001",
+      "Run_Name": "Sesi Ujian Kelas A - Pagi",
+      "Class_Name": "Kelas A",
+      "Start_At": "2026-09-17T09:39:46.514Z",
+      "End_At": "2026-09-17T15:09:46.514Z",
+      "Access_Code": "BIO2026",
+      "Status": "OPEN",
+      "Response_Retention_Days": 14,
+      "Delete_After": "2026-10-01T10:09:46.514Z",
+      "Data_Status": "RESET",
+      "Created_By": "ADMIN",
+      "Created_At": "2026-09-17T10:09:46.514Z",
+      "Closed_At": "",
+      "Reset_At": "2026-09-17T10:13:01.715Z"
+    }
+  ],
+  "ATTEMPTS": [
+    {
+      "Attempt_ID": "ATT-20260917-164732-XDC6",
+      "Run_ID": "RUN001",
+      "Student_ID": "USR-20260917-164732-SOKF",
+      "Started_At": "2026-09-17T16:47:32.027Z",
+      "Expires_At": "2026-09-17T17:47:32.027Z",
+      "Status": "SUBMITTED",
+      "Objective_Score": 0,
+      "Essay_Score": 0,
+      "Final_Score": 0,
+      "Violation_Count": 1,
+      "Last_Sync_At": "2026-09-17T16:47:53.229Z",
+      "Submitted_At": "2026-09-17T16:47:53.229Z",
+      "Client_Submission_ID": "SUB-20260917-164753-5B1H"
+    },
+    {
+      "Attempt_ID": "ATT-20260917-172355-W7DT",
+      "Run_ID": "RUN001",
+      "Student_ID": "USR-20260917-172355-JD8J",
+      "Started_At": "2026-09-17T17:23:55.171Z",
+      "Expires_At": "2026-09-17T18:23:55.171Z",
+      "Status": "SUBMITTED",
+      "Objective_Score": 2,
+      "Essay_Score": 0,
+      "Final_Score": 2,
+      "Violation_Count": 0,
+      "Last_Sync_At": "2026-09-17T17:24:09.074Z",
+      "Submitted_At": "2026-09-17T17:24:09.074Z",
+      "Client_Submission_ID": "SUB-20260917-172409-G97M"
+    },
+    {
+      "Attempt_ID": "ATT-20260917-173100-PV4V",
+      "Run_ID": "RUN001",
+      "Student_ID": "USR-20260917-173100-RO4T",
+      "Started_At": "2026-09-17T17:31:00.065Z",
+      "Expires_At": "2026-09-17T18:31:00.065Z",
+      "Status": "IN_PROGRESS",
+      "Objective_Score": 0,
+      "Essay_Score": 0,
+      "Final_Score": 0,
+      "Violation_Count": 9,
+      "Last_Sync_At": "2026-09-17T17:37:14.123Z"
+    },
+    {
+      "Attempt_ID": "ATT-20260917-173915-0MZC",
+      "Run_ID": "RUN001",
+      "Student_ID": "USR-20260917-173915-NWWA",
+      "Started_At": "2026-09-17T17:39:15.516Z",
+      "Expires_At": "2026-09-17T18:39:15.516Z",
+      "Status": "IN_PROGRESS",
+      "Objective_Score": 0,
+      "Essay_Score": 0,
+      "Final_Score": 0,
+      "Violation_Count": 0,
+      "Last_Sync_At": "2026-09-17T17:39:15.516Z"
+    },
+    {
+      "Attempt_ID": "ATT-20260917-173937-73R7",
+      "Run_ID": "RUN001",
+      "Student_ID": "USR-20260917-173937-VHCJ",
+      "Started_At": "2026-09-17T17:39:37.393Z",
+      "Expires_At": "2026-09-17T18:39:37.393Z",
+      "Status": "IN_PROGRESS",
+      "Objective_Score": 0,
+      "Essay_Score": 0,
+      "Final_Score": 0,
+      "Violation_Count": 0,
+      "Last_Sync_At": "2026-09-17T17:39:37.393Z"
+    }
+  ],
+  "ANSWERS": [
+    {
+      "Answer_ID": "ANS-20260917-164735-60PX",
+      "Attempt_ID": "ATT-20260917-164732-XDC6",
+      "Exam_Question_ID": "EQ001",
+      "Selected_Option_ID": "OPT002",
+      "Answer_Text": "",
+      "Is_Correct": false,
+      "Auto_Score": 0,
+      "Manual_Score": 0,
+      "Lecturer_Feedback": "",
+      "Saved_At": "2026-09-17T16:47:35.104Z"
+    },
+    {
+      "Answer_ID": "ANS-20260917-164737-EUB2",
+      "Attempt_ID": "ATT-20260917-164732-XDC6",
+      "Exam_Question_ID": "EQ002",
+      "Selected_Option_ID": "OPT008",
+      "Answer_Text": "",
+      "Is_Correct": false,
+      "Auto_Score": 0,
+      "Manual_Score": 0,
+      "Lecturer_Feedback": "",
+      "Saved_At": "2026-09-17T16:47:37.696Z"
+    },
+    {
+      "Answer_ID": "ANS-20260917-164742-7HLY",
+      "Attempt_ID": "ATT-20260917-164732-XDC6",
+      "Exam_Question_ID": "EQ003",
+      "Answer_Text": "kas;djfwp;fd.knafklsdnfklmn,fmx,lkask",
+      "Is_Correct": false,
+      "Auto_Score": 0,
+      "Manual_Score": 0,
+      "Lecturer_Feedback": "",
+      "Saved_At": "2026-09-17T16:47:47.364Z"
+    },
+    {
+      "Answer_ID": "ANS-20260917-172358-P2I9",
+      "Attempt_ID": "ATT-20260917-172355-W7DT",
+      "Exam_Question_ID": "EQ001",
+      "Selected_Option_ID": "OPT001",
+      "Answer_Text": "",
+      "Is_Correct": true,
+      "Auto_Score": 2,
+      "Manual_Score": 0,
+      "Lecturer_Feedback": "",
+      "Saved_At": "2026-09-17T17:23:58.370Z"
+    },
+    {
+      "Answer_ID": "ANS-20260917-172401-AJ4I",
+      "Attempt_ID": "ATT-20260917-172355-W7DT",
+      "Exam_Question_ID": "EQ002",
+      "Selected_Option_ID": "OPT008",
+      "Answer_Text": "",
+      "Is_Correct": false,
+      "Auto_Score": 0,
+      "Manual_Score": 0,
+      "Lecturer_Feedback": "",
+      "Saved_At": "2026-09-17T17:24:01.702Z"
+    },
+    {
+      "Answer_ID": "ANS-20260917-172405-K4AR",
+      "Attempt_ID": "ATT-20260917-172355-W7DT",
+      "Exam_Question_ID": "EQ003",
+      "Answer_Text": "/m;lm;lm;kjikhjoliho",
+      "Is_Correct": false,
+      "Auto_Score": 0,
+      "Manual_Score": 0,
+      "Lecturer_Feedback": "",
+      "Saved_At": "2026-09-17T17:24:05.292Z"
+    }
+  ],
+  "VIOLATIONS": [
+    {
+      "Violation_ID": "VIO-20260917-164751-TOJE",
+      "Attempt_ID": "ATT-20260917-164732-XDC6",
+      "Event_Type": "WINDOW_BLUR",
+      "Detected_At": "2026-09-17T16:47:51.184Z",
+      "Duration_Seconds": 4,
+      "Is_Authorized": false,
+      "Alarm_Status": "ACTIVE",
+      "Admin_Note": ""
+    },
+    {
+      "Violation_ID": "VIO-20260917-173117-ZSOD",
+      "Attempt_ID": "ATT-20260917-173100-PV4V",
+      "Event_Type": "WINDOW_BLUR",
+      "Detected_At": "2026-09-17T17:31:17.672Z",
+      "Duration_Seconds": 15,
+      "Is_Authorized": false,
+      "Alarm_Status": "ACTIVE",
+      "Admin_Note": ""
+    },
+    {
+      "Violation_ID": "VIO-20260917-173117-5Y0A",
+      "Attempt_ID": "ATT-20260917-173100-PV4V",
+      "Event_Type": "TAB_SWITCH",
+      "Detected_At": "2026-09-17T17:31:17.677Z",
+      "Duration_Seconds": 1,
+      "Is_Authorized": false,
+      "Alarm_Status": "ACTIVE",
+      "Admin_Note": ""
+    },
+    {
+      "Violation_ID": "VIO-20260917-173252-OYUL",
+      "Attempt_ID": "ATT-20260917-173100-PV4V",
+      "Event_Type": "TAB_SWITCH",
+      "Detected_At": "2026-09-17T17:32:52.185Z",
+      "Duration_Seconds": 93,
+      "Is_Authorized": false,
+      "Alarm_Status": "ACTIVE",
+      "Admin_Note": ""
+    },
+    {
+      "Violation_ID": "VIO-20260917-173252-R47V",
+      "Attempt_ID": "ATT-20260917-173100-PV4V",
+      "Event_Type": "WINDOW_BLUR",
+      "Detected_At": "2026-09-17T17:32:52.187Z",
+      "Duration_Seconds": 93,
+      "Is_Authorized": false,
+      "Alarm_Status": "ACTIVE",
+      "Admin_Note": ""
+    },
+    {
+      "Violation_ID": "VIO-20260917-173356-5FAJ",
+      "Attempt_ID": "ATT-20260917-173100-PV4V",
+      "Event_Type": "TAB_SWITCH",
+      "Detected_At": "2026-09-17T17:33:56.969Z",
+      "Duration_Seconds": 59,
+      "Is_Authorized": false,
+      "Alarm_Status": "ACTIVE",
+      "Admin_Note": ""
+    },
+    {
+      "Violation_ID": "VIO-20260917-173515-90VX",
+      "Attempt_ID": "ATT-20260917-173100-PV4V",
+      "Event_Type": "TAB_SWITCH",
+      "Detected_At": "2026-09-17T17:35:15.136Z",
+      "Duration_Seconds": 77,
+      "Is_Authorized": false,
+      "Alarm_Status": "ACTIVE",
+      "Admin_Note": ""
+    },
+    {
+      "Violation_ID": "VIO-20260917-173518-4Y5Y",
+      "Attempt_ID": "ATT-20260917-173100-PV4V",
+      "Event_Type": "TAB_SWITCH",
+      "Detected_At": "2026-09-17T17:35:18.216Z",
+      "Duration_Seconds": 2,
+      "Is_Authorized": false,
+      "Alarm_Status": "ACTIVE",
+      "Admin_Note": ""
+    },
+    {
+      "Violation_ID": "VIO-20260917-173528-8Q17",
+      "Attempt_ID": "ATT-20260917-173100-PV4V",
+      "Event_Type": "TAB_SWITCH",
+      "Detected_At": "2026-09-17T17:35:28.073Z",
+      "Duration_Seconds": 8,
+      "Is_Authorized": false,
+      "Alarm_Status": "ACTIVE",
+      "Admin_Note": ""
+    },
+    {
+      "Violation_ID": "VIO-20260917-173714-5RCB",
+      "Attempt_ID": "ATT-20260917-173100-PV4V",
+      "Event_Type": "TAB_SWITCH",
+      "Detected_At": "2026-09-17T17:37:14.123Z",
+      "Duration_Seconds": 104,
+      "Is_Authorized": false,
+      "Alarm_Status": "ACTIVE",
+      "Admin_Note": ""
+    }
+  ],
+  "PERMISSIONS": [],
+  "ADMIN_LOGS": [
+    {
+      "Log_ID": "LOG-20260917-101301-VT19",
+      "Admin_ID": "ADMIN",
+      "Action_Type": "RESET_RUN",
+      "Target_Type": "EXAM_RUN",
+      "Target_ID": "RUN001",
+      "Details": "Reset respons: 2 attempts, 2 answers, 1 violations dihapus",
+      "Created_At": "2026-09-17T10:13:01.715Z"
+    },
+    {
+      "Log_ID": "LOG-20260917-101225-RF38",
+      "Admin_ID": "ADMIN",
+      "Action_Type": "GRADE_ESSAY",
+      "Target_Type": "ANSWER",
+      "Target_ID": "ANS-20260917-101203-7H0U",
+      "Details": "Beri nilai essay 8/10",
+      "Created_At": "2026-09-17T10:12:25.418Z"
+    },
+    {
+      "Log_ID": "LOG-20260917-101215-0INV",
+      "Admin_ID": "ADMIN",
+      "Action_Type": "GRANT_PERMISSION",
+      "Target_Type": "ATTEMPT",
+      "Target_ID": "ATT-20260917-101158-SOKD",
+      "Details": "Beri izin TOILET (5 menit): Izin ke toilet",
+      "Created_At": "2026-09-17T10:12:15.988Z"
+    },
+    {
+      "Log_ID": "LOG001",
+      "Admin_ID": "ADMIN",
+      "Action_Type": "INIT_SYSTEM",
+      "Target_Type": "DATABASE",
+      "Target_ID": "SHEETS",
+      "Details": "Inisialisasi database master spec selesai",
+      "Created_At": "2026-09-17T10:09:46.514Z"
+    }
+  ]
+}
