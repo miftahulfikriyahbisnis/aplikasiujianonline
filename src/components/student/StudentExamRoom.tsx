@@ -253,6 +253,10 @@ export const StudentExamRoom: React.FC<StudentExamRoomProps> = ({ examData, onEx
       const data = await res.json();
       if (data.status === 'success' || data.ok) {
         setSaveStatus('saved');
+        if (data.isExpired) {
+          setRemainingSeconds(0);
+          handleSubmitExam(true);
+        }
       } else {
         setSaveStatus('error');
       }

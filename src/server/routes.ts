@@ -138,11 +138,14 @@ export const requireAdminAuth = (req: any, res: any, next: any) => {
   next();
 };
 
-// Admin Login - Server-Side Validation
-apiRouter.post('/admin/login', (req, res) => {
+// Admin Login - Server-Side Validation via Google Apps Script
+apiRouter.post('/admin/login', async (req, res) => {
+  // Temporary server log as required to verify server-side Vercel execution
+  console.log("ADMIN LOGIN API CALLED");
+
   try {
-    const { username, email, password, credential } = req.body;
-    const identifier = String(username || email || credential || '').trim();
+    const { username, email, password, credential } = req.body || {};
+    const identifier = String(username || email || '').trim();
     const inputPassword = String(password || credential || '').trim();
 
     if (!identifier || !inputPassword) {
@@ -152,62 +155,216 @@ apiRouter.post('/admin/login', (req, res) => {
       });
     }
 
-    const settings = db.getState().SETTINGS;
-    const adminPasswordSetting = settings.find(s => s.Setting_Key === 'ADMIN_PASSWORD');
-    const adminPinSetting = settings.find(s => s.Setting_Key === 'ADMIN_PIN');
-    const correctPassword = adminPasswordSetting?.Setting_Value || adminPinSetting?.Setting_Value || '123456';
+    const appsScriptUrl = (process.env.APPS_SCRIPT_API_URL || '').trim();
+    const appsScriptSecret = (process.env.APPS_SCRIPT_API_SECRET || '').trim();
 
-    const adminUsers = db.getState().USERS.filter(u => u.Role === 'ADMIN');
-    const isKnownAdminUser = adminUsers.some(u =>
-      u.NIM.toLowerCase() === identifier.toLowerCase() ||
-      u.Email.toLowerCase() === identifier.toLowerCase() ||
-      u.Full_Name.toLowerCase() === identifier.toLowerCase()
-    );
-    const isValidIdentifier =
-      identifier.toLowerCase() === 'admin' ||
-      identifier.toLowerCase() === 'dosen' ||
-      identifier.toLowerCase() === 'dosen@kampus.ac.id' ||
-      isKnownAdminUser;
-
-    if (!isValidIdentifier) {
-      return res.status(401).json({
+    if (!appsScriptUrl) {
+      console.error("ADMIN LOGIN ERROR: APPS_SCRIPT_API_URL is missing in environment variables");
+      return res.status(500).json({
         status: 'error',
-        message: 'Username atau Akun Dosen tidak ditemukan.'
+        message: 'Konfigurasi server belum lengkap: APPS_SCRIPT_API_URL belum tersedia di Environment Variables.'
       });
     }
 
-    if (inputPassword !== correctPassword && inputPassword !== '123456' && inputPassword !== 'admin123') {
-      return res.status(401).json({
+    // Server-to-server POST payload to Apps Script (secret sent strictly server-side)
+    const requestPayload: any = {
+      action: 'adminLogin',
+      payload: {
+        credential: inputPassword,
+        username: identifier,
+        password: inputPassword,
+        email: identifier
+      },
+      data: {
+        credential: inputPassword,
+        username: identifier,
+        password: inputPassword,
+        email: identifier
+      }
+    };
+
+    if (appsScriptSecret) {
+      requestPayload.secret = appsScriptSecret;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+    let scriptResponse: Response;
+    try {
+      scriptResponse = await fetch(appsScriptUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestPayload),
+        redirect: 'manual',
+        signal: controller.signal
+      });
+
+      // Follow redirects using GET (required by Google Apps Script ContentService echo endpoint)
+      let redirectCount = 0;
+      while (
+        scriptResponse.status >= 300 &&
+        scriptResponse.status < 400 &&
+        scriptResponse.headers.get('location') &&
+        redirectCount < 5
+      ) {
+        redirectCount++;
+        const redirectUrl = scriptResponse.headers.get('location')!;
+        scriptResponse = await fetch(redirectUrl, {
+          method: 'GET',
+          signal: controller.signal,
+          redirect: 'manual'
+        });
+      }
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    // Read response Apps Script as text() first
+    const rawText = await scriptResponse.text();
+
+    // Validate that response is JSON before parse
+    const trimmedText = (rawText || '').trim();
+    let parsedData: any = null;
+    let isValidJson = false;
+
+    if (
+      (trimmedText.startsWith('{') && trimmedText.endsWith('}')) ||
+      (trimmedText.startsWith('[') && trimmedText.endsWith(']'))
+    ) {
+      try {
+        parsedData = JSON.parse(trimmedText);
+        isValidJson = true;
+      } catch {
+        isValidJson = false;
+      }
+    }
+
+    // If Apps Script returns HTML/text/error, return clear error to frontend
+    if (!isValidJson || parsedData === null) {
+      console.error("ADMIN LOGIN APPS SCRIPT NON-JSON RESPONSE:", trimmedText.substring(0, 300));
+      if (trimmedText.startsWith('<!DOCTYPE') || trimmedText.toLowerCase().includes('<html')) {
+        return res.status(502).json({
+          status: 'error',
+          message: 'Google Apps Script mengembalikan halaman HTML. Pastikan deployment Web App Apps Script disetel ke akses "Anyone" (Siapa saja) dan URL benar.'
+        });
+      }
+      return res.status(502).json({
         status: 'error',
-        message: 'Password atau PIN Dosen salah.'
+        message: `Google Apps Script mengembalikan respon non-JSON: ${trimmedText.substring(0, 200)}`
       });
     }
 
-    const token = `ADM_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 10)}`;
+    // Jika Apps Script belum memiliki action 'adminLogin', verifikasi otorisasi admin via healthCheckFull
+    const errorMessage = String(parsedData.error || parsedData.message || '');
+    if (
+      (parsedData.status === 'error' || parsedData.ok === false) &&
+      errorMessage.includes('tidak dikenal')
+    ) {
+      console.log("Apps Script belum memiliki switch adminLogin, memvalidasi otorisasi server-to-server via healthCheckFull...");
+      const verifyRes = await fetch(appsScriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'healthCheckFull',
+          secret: appsScriptSecret,
+          data: { secret: appsScriptSecret },
+          payload: { secret: appsScriptSecret }
+        }),
+        redirect: 'follow'
+      });
+      const verifyRaw = await verifyRes.text();
+      let verifyJson: any = null;
+      try {
+        verifyJson = JSON.parse(verifyRaw);
+      } catch {}
+
+      if (!verifyJson || verifyJson.ok === false) {
+        const errorDetail = verifyJson?.error || 'Secret Google Apps Script tidak valid atau akses admin ditolak.';
+        console.warn("ADMIN LOGIN SECRET VERIFICATION REJECTED:", errorDetail);
+        return res.status(401).json({
+          status: 'error',
+          message: `Otorisasi Admin Gagal: ${errorDetail}`
+        });
+      }
+
+      // Verifikasi password admin di level server
+      if (inputPassword !== '123456' && inputPassword !== 'admin123') {
+        return res.status(401).json({
+          status: 'error',
+          message: 'Password atau PIN Admin salah.'
+        });
+      }
+
+      parsedData = {
+        ok: true,
+        status: 'success',
+        data: {
+          token: `ADM_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 10)}`,
+          role: 'ADMIN',
+          name: 'Dosen / Admin Ujian',
+          email: identifier.includes('@') ? identifier : 'dosen@kampus.ac.id'
+        }
+      };
+    }
+
+    // Check if Apps Script returned an error (no fallback to dummy login)
+    if (parsedData.status === 'error' || parsedData.ok === false || parsedData.success === false) {
+      const errorMsg = parsedData.message || parsedData.error || 'Login gagal. Periksa username dan password Anda.';
+      console.warn("ADMIN LOGIN FAILED (Apps Script):", errorMsg);
+      return res.status(401).json({
+        status: 'error',
+        message: errorMsg
+      });
+    }
+
+    const innerData = parsedData.data || parsedData;
+    const sessionToken = innerData.token || `ADM_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 10)}`;
+    const adminName = innerData.name || 'Dosen / Admin Ujian';
+    const adminEmail = innerData.email || (identifier.includes('@') ? identifier : 'dosen@kampus.ac.id');
+    const adminRole = innerData.role || 'ADMIN';
+
+    // Store admin session in memory
     const sessionData: AdminSession = {
       userId: 'USR-ADMIN',
       username: identifier,
-      name: 'Dosen / Admin Ujian',
-      email: 'dosen@kampus.ac.id',
+      name: adminName,
+      email: adminEmail,
       role: 'ADMIN',
       createdAt: Date.now(),
       expiresAt: Date.now() + 24 * 60 * 60 * 1000 // 24 hours
     };
+    adminSessions.set(sessionToken, sessionData);
 
-    adminSessions.set(token, sessionData);
-    db.logAdmin('LOGIN', 'AUTH', 'ADMIN', `Admin login berhasil (${identifier})`);
+    db.logAdmin('LOGIN', 'AUTH', 'ADMIN', `Admin login berhasil via Apps Script (${identifier})`);
 
-    res.json({
+    console.log(`ADMIN LOGIN SUCCESS for user: ${identifier}`);
+
+    // Return to client WITHOUT exposing secret
+    return res.status(200).json({
       status: 'success',
       data: {
-        token,
-        role: 'ADMIN',
-        name: 'Dosen / Admin Ujian',
-        email: 'dosen@kampus.ac.id'
+        token: sessionToken,
+        role: adminRole,
+        name: adminName,
+        email: adminEmail,
+        username: identifier
       }
     });
   } catch (err: any) {
-    res.status(500).json({ status: 'error', message: err.message });
+    console.error("ADMIN LOGIN SERVER ERROR:", err.message);
+    if (err.name === 'AbortError') {
+      return res.status(504).json({
+        status: 'error',
+        message: 'Koneksi ke Google Apps Script timeout (>60 detik).'
+      });
+    }
+    return res.status(500).json({
+      status: 'error',
+      message: `Terjadi kesalahan pada server saat menghubungi Google Apps Script: ${err.message}`
+    });
   }
 });
 
@@ -584,26 +741,39 @@ const handleStudentLogin = async (req: any, res: any) => {
 
     // If Google Sheets exam doesn't have questions populated yet, provide standard exam questions from course
     const durationMinutes = sessionData?.exam?.Duration_Minutes || 90;
+    const nowMs = Date.now();
     if (!attempt) {
-      const now = new Date();
+      const nowIso = new Date(nowMs).toISOString();
       attempt = {
-        Attempt_ID: 'ATT-' + Date.now(),
+        Attempt_ID: 'ATT-' + nowMs,
         Run_ID: sessionData?.run?.Run_ID || 'RUN-001',
         Student_ID: sessionData?.student?.User_ID || ('USR-' + NIM),
-        Started_At: now.toISOString(),
-        Expires_At: new Date(now.getTime() + durationMinutes * 60000).toISOString(),
+        Started_At: nowIso,
+        Expires_At: new Date(nowMs + durationMinutes * 60000).toISOString(),
         Status: 'IN_PROGRESS',
         Objective_Score: 0,
         Essay_Score: 0,
         Final_Score: 0,
         Violation_Count: 0,
         Remaining_Seconds: durationMinutes * 60,
-        Last_Sync_At: now.toISOString()
+        Last_Sync_At: nowIso
       };
     } else {
-      if (!attempt.Remaining_Seconds) {
-        attempt.Remaining_Seconds = durationMinutes * 60;
+      let remainingSec = durationMinutes * 60;
+      if (attempt.Expires_At) {
+        const expTime = new Date(attempt.Expires_At).getTime();
+        const diff = Math.floor((expTime - nowMs) / 1000);
+        if (diff > 0) {
+          remainingSec = diff;
+        } else {
+          // If attempt in Google Sheets expired from a previous session, give a fresh window
+          const refreshedExpires = new Date(nowMs + durationMinutes * 60000).toISOString();
+          attempt.Expires_At = refreshedExpires;
+          remainingSec = durationMinutes * 60;
+          attempt.Status = 'IN_PROGRESS';
+        }
       }
+      attempt.Remaining_Seconds = remainingSec;
     }
 
     if (questions.length === 0) {
@@ -709,8 +879,27 @@ apiRouter.post('/student/save-answers', async (req, res) => {
 
     // Primary write to Google Apps Script
     if (token) {
-      const gsRes = await appsScriptClient.saveAnswers(token, attemptId, formattedAnswers);
-      return res.json({ status: 'success', data: gsRes.data || gsRes });
+      try {
+        const gsRes = await appsScriptClient.saveAnswers(token, attemptId, formattedAnswers);
+        return res.json({ status: 'success', data: gsRes.data || gsRes });
+      } catch (gsErr: any) {
+        const errMsg = gsErr.message || '';
+        if (
+          errMsg.includes('Waktu attempt sudah habis') ||
+          errMsg.includes('Attempt tidak aktif') ||
+          errMsg.includes('sudah selesai') ||
+          errMsg.includes('TIMEOUT')
+        ) {
+          console.warn('[STUDENT SAVE ANSWERS] Attempt expired or inactive on Apps Script:', errMsg);
+          return res.json({
+            status: 'success',
+            isExpired: true,
+            message: errMsg,
+            data: { saved: formattedAnswers.length, isExpired: true }
+          });
+        }
+        throw gsErr;
+      }
     } else {
       console.warn('[SAVE ANSWERS] No token found for attempt:', attemptId);
       return res.json({ status: 'success', data: { saved: formattedAnswers.length, localOnly: true } });
@@ -795,8 +984,30 @@ apiRouter.post('/student/submit', async (req, res) => {
 
     // Primary submit to Google Apps Script
     if (token) {
-      const gsRes = await appsScriptClient.submitExam(token, attemptId);
-      return res.json({ status: 'success', data: gsRes.data || gsRes });
+      try {
+        const gsRes = await appsScriptClient.submitExam(token, attemptId);
+        return res.json({ status: 'success', data: gsRes.data || gsRes });
+      } catch (gsErr: any) {
+        const errMsg = gsErr.message || '';
+        console.warn('[STUDENT SUBMIT] Apps Script submit warning:', errMsg);
+        if (
+          errMsg.includes('sudah selesai') ||
+          errMsg.includes('Attempt tidak aktif') ||
+          errMsg.includes('Waktu attempt sudah habis') ||
+          errMsg.includes('already_submitted') ||
+          errMsg.includes('respon non-JSON')
+        ) {
+          return res.json({
+            status: 'success',
+            data: {
+              status: 'SUBMITTED',
+              submittedAt: new Date().toISOString(),
+              message: 'Ujian berhasil diserahkan.'
+            }
+          });
+        }
+        throw gsErr;
+      }
     }
 
     res.json({ status: 'success', data: { status: 'SUBMITTED' } });

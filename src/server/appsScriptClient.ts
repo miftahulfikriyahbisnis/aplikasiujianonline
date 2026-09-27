@@ -40,7 +40,8 @@ export class AppsScriptClient {
 
     const bodyObj: any = {
       action,
-      data: payload
+      data: payload,
+      payload: payload
     };
 
     if (secret) {
@@ -51,15 +52,28 @@ export class AppsScriptClient {
     }
 
     try {
-      const response = await fetch(url, {
+      let response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(bodyObj),
         signal: controller.signal,
-        redirect: 'follow'
+        redirect: 'manual'
       });
+
+      // Follow redirects using GET (required by Google Apps Script ContentService echo endpoint)
+      let redirectCount = 0;
+      while (response.status >= 300 && response.status < 400 && response.headers.get('location') && redirectCount < 5) {
+        redirectCount++;
+        const redirectUrl = response.headers.get('location')!;
+        response = await fetch(redirectUrl, {
+          method: 'GET',
+          signal: controller.signal,
+          redirect: 'manual'
+        });
+      }
+
       clearTimeout(timeoutId);
 
       const text = await response.text();
@@ -78,7 +92,7 @@ export class AppsScriptClient {
     } catch (err: any) {
       clearTimeout(timeoutId);
       if (err.name === 'AbortError') {
-        throw new Error('Koneksi ke Google Apps Script timeout (>65 detik).');
+        throw new Error('Koneksi ke Google Apps Script timeout (>90 detik).');
       }
       throw err;
     }
@@ -133,6 +147,7 @@ export class AppsScriptClient {
       'saveAnswers',
       {
         Attempt_ID: attemptId,
+        attemptId: attemptId,
         answers: answers
       },
       token
@@ -152,9 +167,14 @@ export class AppsScriptClient {
       'recordViolation',
       {
         Attempt_ID: attemptId,
+        attemptId: attemptId,
         Event_Type: data.Event_Type,
         Detected_At: data.Detected_At,
-        Duration_Seconds: data.Duration_Seconds || 0
+        Duration_Seconds: data.Duration_Seconds || 0,
+        event: {
+          eventType: data.Event_Type,
+          durationSeconds: data.Duration_Seconds || 0
+        }
       },
       token
     );
@@ -164,7 +184,9 @@ export class AppsScriptClient {
     return this.call(
       'submitExam',
       {
-        Attempt_ID: attemptId
+        Attempt_ID: attemptId,
+        attemptId: attemptId,
+        clientSubmissionId: attemptId
       },
       token
     );

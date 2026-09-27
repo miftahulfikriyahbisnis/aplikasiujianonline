@@ -157,6 +157,16 @@
       "Is_Active": true,
       "Created_At": "2026-09-17T17:39:37.393Z",
       "Updated_At": "2026-09-17T17:39:37.393Z"
+    },
+    {
+      "User_ID": "USR-20260918-053909-NCK5",
+      "NIM": "2024001",
+      "Full_Name": "Ahmad Fauzi",
+      "Class_Name": "Kelas A",
+      "Role": "STUDENT",
+      "Is_Active": true,
+      "Created_At": "2026-09-18T05:39:09.397Z",
+      "Updated_At": "2026-09-18T05:39:09.397Z"
     }
   ],
   "COURSES": [
@@ -535,6 +545,19 @@
       "Final_Score": 0,
       "Violation_Count": 0,
       "Last_Sync_At": "2026-09-17T17:39:37.393Z"
+    },
+    {
+      "Attempt_ID": "ATT-20260918-053909-PMUI",
+      "Run_ID": "RUN001",
+      "Student_ID": "USR-20260918-053909-NCK5",
+      "Started_At": "2026-09-18T05:39:09.397Z",
+      "Expires_At": "2026-09-18T06:39:09.397Z",
+      "Status": "IN_PROGRESS",
+      "Objective_Score": 0,
+      "Essay_Score": 0,
+      "Final_Score": 0,
+      "Violation_Count": 0,
+      "Last_Sync_At": "2026-09-18T05:39:09.397Z"
     }
   ],
   "ANSWERS": [
@@ -713,6 +736,42 @@
   ],
   "PERMISSIONS": [],
   "ADMIN_LOGS": [
+    {
+      "Log_ID": "LOG-20260927-230721-05NE",
+      "Admin_ID": "ADMIN",
+      "Action_Type": "LOGIN",
+      "Target_Type": "AUTH",
+      "Target_ID": "ADMIN",
+      "Details": "Admin login berhasil via Apps Script (admin)",
+      "Created_At": "2026-09-27T23:07:21.485Z"
+    },
+    {
+      "Log_ID": "LOG-20260927-230650-JJVH",
+      "Admin_ID": "ADMIN",
+      "Action_Type": "LOGIN",
+      "Target_Type": "AUTH",
+      "Target_ID": "ADMIN",
+      "Details": "Admin login berhasil via Apps Script (admin)",
+      "Created_At": "2026-09-27T23:06:50.522Z"
+    },
+    {
+      "Log_ID": "LOG-20260927-230004-ABAM",
+      "Admin_ID": "ADMIN",
+      "Action_Type": "LOGIN",
+      "Target_Type": "AUTH",
+      "Target_ID": "ADMIN",
+      "Details": "Admin login berhasil (admin)",
+      "Created_At": "2026-09-27T23:00:04.336Z"
+    },
+    {
+      "Log_ID": "LOG-20260927-223233-L0CK",
+      "Admin_ID": "ADMIN",
+      "Action_Type": "LOGIN",
+      "Target_Type": "AUTH",
+      "Target_ID": "ADMIN",
+      "Details": "Admin login berhasil (admin)",
+      "Created_At": "2026-09-27T22:32:33.097Z"
+    },
     {
       "Log_ID": "LOG-20260917-101301-VT19",
       "Admin_ID": "ADMIN",
