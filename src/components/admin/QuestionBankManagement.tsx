@@ -9,7 +9,9 @@ import {
   CheckCircle2,
   AlertCircle,
   HelpCircle,
-  Image as ImageIcon
+  Image as ImageIcon,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import type { QuestionItem, CourseItem, TopicItem, QuestionBankItem } from '../../types/index.ts';
 
@@ -19,6 +21,56 @@ export const QuestionBankManagement: React.FC = () => {
   const [topics, setTopics] = useState<TopicItem[]>([]);
   const [courses, setCourses] = useState<CourseItem[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Expanded cards state
+  const [expandedQuestionIds, setExpandedQuestionIds] = useState<Record<string, boolean>>({});
+
+  const toggleExpand = (questionId: string) => {
+    setExpandedQuestionIds(prev => ({
+      ...prev,
+      [questionId]: !prev[questionId]
+    }));
+  };
+
+  // Helper functions for robust data binding
+  const getQuestionText = (q: any): string => {
+    return q.Question_Text || q.Current_Version?.Question_Text || q.question_text || q.text || '';
+  };
+
+  const getQuestionPoints = (q: any): number | null => {
+    const pts = q.Default_Points ?? q.Current_Version?.Default_Points ?? q.points ?? null;
+    if (pts === null || pts === undefined || isNaN(Number(pts))) return null;
+    return Number(pts);
+  };
+
+  const getQuestionVersion = (q: any): number => {
+    return Number(q.Version_Number || q.Current_Version?.Version_Number) || 1;
+  };
+
+  const getQuestionImage = (q: any): string => {
+    return q.Image_URL || q.Current_Version?.Image_URL || '';
+  };
+
+  const getQuestionGuide = (q: any): string => {
+    return q.Answer_Guide || q.Current_Version?.Answer_Guide || '';
+  };
+
+  const getQuestionExplanation = (q: any): string => {
+    return q.Explanation || q.Current_Version?.Explanation || '';
+  };
+
+  const getBankName = (q: any): string => {
+    if (q.Bank_Name) return q.Bank_Name;
+    const b = banks.find(x => x.Bank_ID === q.Bank_ID);
+    return b?.Bank_Name || q.Bank_ID || 'Bank Soal';
+  };
+
+  const getTopicName = (q: any): string => {
+    if (q.Topic_Name) return q.Topic_Name;
+    if (!q.Topic_ID) return '';
+    const t = topics.find(x => x.Topic_ID === q.Topic_ID);
+    return t?.Topic_Name || q.Topic_ID || '';
+  };
 
   // Filters
   const [filterBank, setFilterBank] = useState('');
@@ -216,11 +268,11 @@ export const QuestionBankManagement: React.FC = () => {
 
   const openRevision = (q: any) => {
     setTargetQuestion(q);
-    setRevText(q.Question_Text);
-    setRevImageUrl(q.Image_URL || '');
-    setRevPoints(q.Default_Points);
-    setRevGuide(q.Answer_Guide || '');
-    setRevExplanation(q.Explanation || '');
+    setRevText(getQuestionText(q));
+    setRevImageUrl(getQuestionImage(q));
+    setRevPoints(getQuestionPoints(q) ?? 2);
+    setRevGuide(getQuestionGuide(q));
+    setRevExplanation(getQuestionExplanation(q));
     if (q.Question_Type === 'MCQ' && q.Options) {
       setRevOptions(q.Options.map((o: any) => ({
         Option_Key: o.Option_Key,

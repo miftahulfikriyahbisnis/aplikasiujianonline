@@ -388,6 +388,22 @@ export default async function handler(req: any, res: any) {
       });
     }
 
+    // Enrich listQuestions dengan meratakan properti Current_Version ke level atas
+    if (action === 'listQuestions' && Array.isArray(resultData)) {
+      resultData = resultData.map((q: any) => {
+        const ver = q.Current_Version || {};
+        return {
+          ...q,
+          Question_Text: q.Question_Text || ver.Question_Text || '',
+          Default_Points: q.Default_Points !== undefined ? q.Default_Points : (ver.Default_Points !== undefined ? ver.Default_Points : null),
+          Version_Number: Number(q.Version_Number || ver.Version_Number) || 1,
+          Image_URL: q.Image_URL || ver.Image_URL || '',
+          Answer_Guide: q.Answer_Guide || ver.Answer_Guide || '',
+          Explanation: q.Explanation || ver.Explanation || ''
+        };
+      });
+    }
+
     return res.status(200).json({
       status: 'success',
       ok: true,
