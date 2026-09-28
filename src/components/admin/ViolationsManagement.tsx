@@ -31,11 +31,15 @@ export const ViolationsManagement: React.FC = () => {
   const [adminNote, setAdminNote] = useState('');
 
   const fetchRuns = () => {
-    fetch('/api/runs')
+    fetch('/api/admin/backend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'listRuns', data: {} })
+    })
       .then(r => r.json())
       .then(r => {
-        if (r.status === 'success') {
-          setRuns(r.data);
+        if (r.status === 'success' || r.ok) {
+          setRuns(Array.isArray(r.data) ? r.data : []);
         }
       })
       .catch(console.error);
@@ -43,19 +47,32 @@ export const ViolationsManagement: React.FC = () => {
 
   const fetchViolations = () => {
     setLoading(true);
-    let url = '/api/violations/all?';
-    if (selectedRunId) url += `runId=${selectedRunId}&`;
-    if (filterStatus) url += `status=${filterStatus}&`;
-
-    fetch(url, {
-      headers: {
-        ...getAdminAuthHeaders()
-      }
+    fetch('/api/admin/backend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'monitorRun',
+        data: { runId: selectedRunId, Run_ID: selectedRunId, status: filterStatus }
+      })
     })
       .then(r => r.json())
       .then(r => {
-        if (r.status === 'success') {
-          setViolations(r.data || []);
+        if (r.status === 'success' || r.ok) {
+          const raw = r.data || [];
+          if (Array.isArray(raw)) {
+            // Flatten violations from attempts if returned nested
+            const allVios: any[] = [];
+            raw.forEach((item: any) => {
+              if (item.violations && Array.isArray(item.violations)) {
+                item.violations.forEach((v: any) => allVios.push({ ...v, Full_Name: item.Full_Name, NIM: item.NIM }));
+              } else if (item.Violation_ID || item.Event_Type) {
+                allVios.push(item);
+              }
+            });
+            setViolations(allVios);
+          } else {
+            setViolations([]);
+          }
         }
       })
       .catch(console.error)
@@ -72,20 +89,23 @@ export const ViolationsManagement: React.FC = () => {
     setActionLoading(selectedViolation.Violation_ID);
 
     try {
-      const res = await fetch('/api/monitoring/violation-action', {
+      const res = await fetch('/api/admin/backend', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          ...getAdminAuthHeaders()
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          violationId: selectedViolation.Violation_ID,
-          actionType,
-          note: adminNote.trim() || (actionType === 'RESOLVE' ? 'Diverifikasi selesai oleh dosen' : 'Alarm di-mute oleh pengawas')
+          action: 'resolveViolation',
+          data: {
+            violationId: selectedViolation.Violation_ID,
+            Violation_ID: selectedViolation.Violation_ID,
+            actionType,
+            note: adminNote.trim() || (actionType === 'RESOLVE' ? 'Diverifikasi selesai oleh dosen' : 'Alarm di-mute oleh pengawas')
+          }
         })
       });
       const data = await res.json();
-      if (data.status === 'success') {
+      if (data.status === 'success' || data.ok) {
         fetchViolations();
         setShowNoteModal(false);
         setAdminNote('');

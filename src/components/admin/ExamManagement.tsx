@@ -51,21 +51,34 @@ export const ExamManagement: React.FC = () => {
   const fetchExamsAndRuns = () => {
     setLoading(true);
     Promise.all([
-      fetch('/api/exams').then(r => r.json()),
-      fetch('/api/runs').then(r => r.json()),
-      fetch('/api/courses').then(r => r.json())
+      fetch('/api/admin/backend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'listExams', data: {} })
+      }).then(r => r.json()),
+      fetch('/api/admin/backend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'listRuns', data: {} })
+      }).then(r => r.json()),
+      fetch('/api/admin/backend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'listCourses', data: {} })
+      }).then(r => r.json())
     ]).then(([examsRes, runsRes, coursesRes]) => {
-      if (examsRes.status === 'success') {
-        setExams(examsRes.data);
-        if (examsRes.data.length > 0 && !selectedExam) {
+      if (examsRes.status === 'success' || examsRes.ok) {
+        setExams(Array.isArray(examsRes.data) ? examsRes.data : []);
+        if (examsRes.data && examsRes.data.length > 0 && !selectedExam) {
           setSelectedExam(examsRes.data[0]);
         }
       }
-      if (runsRes.status === 'success') setRuns(runsRes.data);
-      if (coursesRes.status === 'success') {
-        setCourses(coursesRes.data);
-        if (coursesRes.data.length > 0 && !newCourseId) {
-          setNewCourseId(coursesRes.data[0].Course_ID);
+      if (runsRes.status === 'success' || runsRes.ok) setRuns(Array.isArray(runsRes.data) ? runsRes.data : []);
+      if (coursesRes.status === 'success' || coursesRes.ok) {
+        const cList = Array.isArray(coursesRes.data) ? coursesRes.data : [];
+        setCourses(cList);
+        if (cList.length > 0 && !newCourseId) {
+          setNewCourseId(cList[0].Course_ID);
         }
       }
     }).finally(() => setLoading(false));
@@ -78,17 +91,28 @@ export const ExamManagement: React.FC = () => {
   // Open question selector modal
   const openQuestionSelector = (exam: any) => {
     setSelectedExam(exam);
-    fetch(`/api/questions?courseId=${exam.Course_ID}`)
+    fetch('/api/admin/backend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'listQuestions',
+        data: { courseId: exam.Course_ID, Course_ID: exam.Course_ID }
+      })
+    })
       .then(r => r.json())
       .then(r => {
-        if (r.status === 'success') {
-          setAvailableQuestions(r.data);
+        if (r.status === 'success' || r.ok) {
+          const list = Array.isArray(r.data) ? r.data : [];
+          setAvailableQuestions(list);
           const initialSelection: Record<string, { points: number; selected: boolean }> = {};
-          r.data.forEach((q: any) => {
-            initialSelection[q.Current_Version_ID] = {
-              points: q.Default_Points || 2,
-              selected: true
-            };
+          list.forEach((q: any) => {
+            const verId = q.Current_Version_ID || q.Version_ID || q.Question_ID;
+            if (verId) {
+              initialSelection[verId] = {
+                points: q.Default_Points || 2,
+                selected: true
+              };
+            }
           });
           setSelectedVersionIds(initialSelection);
           setShowSelectQuestionsModal(true);
@@ -107,17 +131,21 @@ export const ExamManagement: React.FC = () => {
         Is_Required: true
       }));
 
-    fetch('/api/exams/set-questions', {
+    fetch('/api/admin/backend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        examId: selectedExam.Exam_ID,
-        questions: items
+        action: 'setExamQuestions',
+        data: {
+          examId: selectedExam.Exam_ID,
+          Exam_ID: selectedExam.Exam_ID,
+          questions: items
+        }
       })
     })
       .then(r => r.json())
       .then(r => {
-        if (r.status === 'success') {
+        if (r.status === 'success' || r.ok) {
           setShowSelectQuestionsModal(false);
           fetchExamsAndRuns();
         }
@@ -126,41 +154,52 @@ export const ExamManagement: React.FC = () => {
 
   const handlePublishExam = (examId: string) => {
     if (!confirm('Publikasikan ujian ini? Soal akan dikunci ke versi yang dipilih.')) return;
-    fetch('/api/exams/publish', {
+    fetch('/api/admin/backend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ examId })
+      body: JSON.stringify({
+        action: 'updateExam',
+        data: {
+          examId,
+          Exam_ID: examId,
+          Status: 'PUBLISHED',
+          status: 'PUBLISHED'
+        }
+      })
     })
       .then(r => r.json())
       .then(r => {
-        if (r.status === 'success') {
+        if (r.status === 'success' || r.ok) {
           fetchExamsAndRuns();
         } else {
-          alert('Gagal mempublikasikan: ' + r.message);
+          alert('Gagal mempublikasikan: ' + (r.message || r.error));
         }
       });
   };
 
   const handleCreateExam = (e: React.FormEvent) => {
     e.preventDefault();
-    fetch('/api/exams', {
+    fetch('/api/admin/backend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        Exam_Name: newExamName,
-        Course_ID: newCourseId,
-        Duration_Minutes: newDuration,
-        Instructions: newInstructions,
-        Anti_Cheat_Enabled: newAntiCheat,
-        Fullscreen_Required: newFullscreen,
-        Shuffle_Questions: newShuffleQuestions,
-        Shuffle_Options: newShuffleOptions,
-        Response_Retention_Days: newRetentionDays
+        action: 'createExam',
+        data: {
+          Exam_Name: newExamName,
+          Course_ID: newCourseId,
+          Duration_Minutes: newDuration,
+          Instructions: newInstructions,
+          Anti_Cheat_Enabled: newAntiCheat,
+          Fullscreen_Required: newFullscreen,
+          Shuffle_Questions: newShuffleQuestions,
+          Shuffle_Options: newShuffleOptions,
+          Response_Retention_Days: newRetentionDays
+        }
       })
     })
       .then(r => r.json())
       .then(r => {
-        if (r.status === 'success') {
+        if (r.status === 'success' || r.ok) {
           setShowCreateExamModal(false);
           setNewExamName('');
           fetchExamsAndRuns();
@@ -171,22 +210,26 @@ export const ExamManagement: React.FC = () => {
   const handleCreateRun = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedExam) return;
-    fetch('/api/runs', {
+    fetch('/api/admin/backend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        Exam_ID: selectedExam.Exam_ID,
-        Run_Name: newRunName || `Sesi Ujian ${selectedExam.Exam_Name}`,
-        Class_Name: newRunClass,
-        Access_Code: newAccessCode || undefined,
-        Start_At: newStartAt || new Date().toISOString(),
-        End_At: newEndAt || new Date(Date.now() + 5 * 3600 * 1000).toISOString(),
-        Status: 'OPEN'
+        action: 'createRun',
+        data: {
+          Exam_ID: selectedExam.Exam_ID,
+          examId: selectedExam.Exam_ID,
+          Run_Name: newRunName || `Sesi Ujian ${selectedExam.Exam_Name}`,
+          Class_Name: newRunClass,
+          Access_Code: newAccessCode || undefined,
+          Start_At: newStartAt || new Date().toISOString(),
+          End_At: newEndAt || new Date(Date.now() + 5 * 3600 * 1000).toISOString(),
+          Status: 'OPEN'
+        }
       })
     })
       .then(r => r.json())
       .then(r => {
-        if (r.status === 'success') {
+        if (r.status === 'success' || r.ok) {
           setShowCreateRunModal(false);
           setNewRunName('');
           setNewAccessCode('');
@@ -196,14 +239,22 @@ export const ExamManagement: React.FC = () => {
   };
 
   const handleUpdateRunStatus = (runId: string, status: 'OPEN' | 'CLOSED') => {
-    fetch('/api/runs/status', {
+    fetch('/api/admin/backend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ runId, status })
+      body: JSON.stringify({
+        action: 'updateRun',
+        data: {
+          runId,
+          Run_ID: runId,
+          status,
+          Status: status
+        }
+      })
     })
       .then(r => r.json())
       .then(r => {
-        if (r.status === 'success') fetchExamsAndRuns();
+        if (r.status === 'success' || r.ok) fetchExamsAndRuns();
       });
   };
 

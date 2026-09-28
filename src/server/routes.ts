@@ -10,6 +10,7 @@ import path from 'path';
 import * as XLSX from 'xlsx';
 import { db } from './db.ts';
 import { appsScriptClient } from './appsScriptClient.ts';
+import adminBackendHandler from '../../api/admin/backend.ts';
 
 export const apiRouter = Router();
 
@@ -366,6 +367,12 @@ apiRouter.post('/admin/login', async (req, res) => {
       message: `Terjadi kesalahan pada server saat menghubungi Google Apps Script: ${err.message}`
     });
   }
+});
+
+// Reusable Server-Side Admin Backend Route
+// Browser -> /api/admin/backend -> Vercel / Express -> Google Apps Script -> Google Sheets
+apiRouter.all('/admin/backend', async (req, res) => {
+  await adminBackendHandler(req, res);
 });
 
 // Admin Verify Session

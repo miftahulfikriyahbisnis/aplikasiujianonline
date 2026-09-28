@@ -32,7 +32,14 @@ export const CoursesManagement: React.FC = () => {
   const fetchCourses = () => {
     setLoading(true);
     setError(null);
-    fetch('/api/courses')
+    fetch('/api/admin/backend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'listCourses',
+        data: {}
+      })
+    })
       .then(res => {
         if (!res.ok) {
           throw new Error(`Server status ${res.status}`);
@@ -40,16 +47,17 @@ export const CoursesManagement: React.FC = () => {
         return res.json();
       })
       .then(res => {
-        if (res.status === 'success') {
-          setCourses(res.data);
-          if (res.data.length > 0) {
+        if (res.status === 'success' || res.ok) {
+          const list = Array.isArray(res.data) ? res.data : [];
+          setCourses(list);
+          if (list.length > 0) {
             // Keep selected or pick first from database
             setSelectedCourse(prev => {
               if (prev) {
-                const found = res.data.find((c: CourseItem) => c.Course_ID === prev.Course_ID);
-                return found || res.data[0];
+                const found = list.find((c: CourseItem) => c.Course_ID === prev.Course_ID);
+                return found || list[0];
               }
-              return res.data[0];
+              return list[0];
             });
           } else {
             setSelectedCourse(null);
@@ -66,14 +74,28 @@ export const CoursesManagement: React.FC = () => {
   };
 
   const fetchCourseDetails = (courseId: string) => {
-    fetch(`/api/topics?courseId=${courseId}`)
+    fetch('/api/admin/backend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'listTopics',
+        data: { courseId, Course_ID: courseId }
+      })
+    })
       .then(res => res.json())
-      .then(res => { if (res.status === 'success') setTopics(res.data); })
+      .then(res => { if (res.status === 'success' || res.ok) setTopics(Array.isArray(res.data) ? res.data : []); })
       .catch(console.error);
 
-    fetch(`/api/question-banks?courseId=${courseId}`)
+    fetch('/api/admin/backend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'listQuestionBanks',
+        data: { courseId, Course_ID: courseId }
+      })
+    })
       .then(res => res.json())
-      .then(res => { if (res.status === 'success') setBanks(res.data); })
+      .then(res => { if (res.status === 'success' || res.ok) setBanks(Array.isArray(res.data) ? res.data : []); })
       .catch(console.error);
   };
 
@@ -93,18 +115,21 @@ export const CoursesManagement: React.FC = () => {
     setSubmittingCourse(true);
     setModalError(null);
 
-    fetch('/api/courses', {
+    fetch('/api/admin/backend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        Course_Code: newCourseCode.trim(),
-        Course_Name: newCourseName.trim(),
-        Description: newCourseDesc.trim()
+        action: 'createCourse',
+        data: {
+          Course_Code: newCourseCode.trim(),
+          Course_Name: newCourseName.trim(),
+          Description: newCourseDesc.trim()
+        }
       })
     })
       .then(res => res.json())
       .then(res => {
-        if (res.status === 'success') {
+        if (res.status === 'success' || res.ok) {
           // Tutup modal dan bersihkan form
           setShowCourseModal(false);
           setNewCourseCode('');
@@ -113,7 +138,7 @@ export const CoursesManagement: React.FC = () => {
           // MANDAT UTAMA: jangan hanya menambahkan course ke React state; panggil listCourses lagi; render ulang dari hasil Google Sheets
           fetchCourses();
         } else {
-          setModalError(res.message || 'Gagal menambahkan mata kuliah ke Google Sheets.');
+          setModalError(res.message || res.error || 'Gagal menambahkan mata kuliah ke Google Sheets.');
         }
       })
       .catch(err => {
@@ -128,20 +153,26 @@ export const CoursesManagement: React.FC = () => {
   const handleCreateTopic = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCourse || !newTopicName) return;
-    fetch('/api/topics', {
+    fetch('/api/admin/backend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        Course_ID: selectedCourse.Course_ID,
-        Topic_Name: newTopicName,
-        Description: newTopicDesc,
-        Sort_Order: newTopicOrder
+        action: 'createTopic',
+        data: {
+          Course_ID: selectedCourse.Course_ID,
+          courseId: selectedCourse.Course_ID,
+          Topic_Name: newTopicName,
+          Description: newTopicDesc,
+          Sort_Order: newTopicOrder
+        }
       })
     })
       .then(res => res.json())
       .then(res => {
-        if (res.status === 'success') {
-          setTopics(prev => [...prev, res.data]);
+        if (res.status === 'success' || res.ok) {
+          if (selectedCourse) {
+            fetchCourseDetails(selectedCourse.Course_ID);
+          }
           setShowTopicModal(false);
           setNewTopicName('');
           setNewTopicDesc('');
@@ -153,19 +184,25 @@ export const CoursesManagement: React.FC = () => {
   const handleCreateBank = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCourse || !newBankName) return;
-    fetch('/api/question-banks', {
+    fetch('/api/admin/backend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        Course_ID: selectedCourse.Course_ID,
-        Bank_Name: newBankName,
-        Description: newBankDesc
+        action: 'createQuestionBank',
+        data: {
+          Course_ID: selectedCourse.Course_ID,
+          courseId: selectedCourse.Course_ID,
+          Bank_Name: newBankName,
+          Description: newBankDesc
+        }
       })
     })
       .then(res => res.json())
       .then(res => {
-        if (res.status === 'success') {
-          setBanks(prev => [...prev, res.data]);
+        if (res.status === 'success' || res.ok) {
+          if (selectedCourse) {
+            fetchCourseDetails(selectedCourse.Course_ID);
+          }
           setShowBankModal(false);
           setNewBankName('');
           setNewBankDesc('');

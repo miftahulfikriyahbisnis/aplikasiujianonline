@@ -38,17 +38,57 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchStats = () => {
+  const fetchStats = async () => {
     setLoading(true);
-    fetch('/api/dashboard-stats')
-      .then(res => res.json())
-      .then(res => {
-        if (res.status === 'success') {
-          setStats(res.data);
-        }
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    try {
+      const [coursesRes, questionsRes, runsRes] = await Promise.all([
+        fetch('/api/admin/backend', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'listCourses', data: {} })
+        }).then(r => r.json()).catch(() => ({ data: [] })),
+        fetch('/api/admin/backend', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'listQuestions', data: {} })
+        }).then(r => r.json()).catch(() => ({ data: [] })),
+        fetch('/api/admin/backend', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'listRuns', data: {} })
+        }).then(r => r.json()).catch(() => ({ data: [] }))
+      ]);
+
+      const courses = Array.isArray(coursesRes.data) ? coursesRes.data : [];
+      const questions = Array.isArray(questionsRes.data) ? questionsRes.data : [];
+      const runs = Array.isArray(runsRes.data) ? runsRes.data : [];
+
+      const activeCoursesCount = courses.filter((c: any) => c.Status === 'ACTIVE' || !c.Status).length;
+      const activeQuestionsCount = questions.filter((q: any) => q.Status === 'ACTIVE' || !q.Status).length;
+      const openRuns = runs.filter((r: any) => r.Status === 'OPEN');
+      const openRunsCount = openRuns.length;
+
+      setStats({
+        activeCoursesCount,
+        activeQuestionsCount,
+        openRunsCount,
+        unresolvedViolationsCount: 0,
+        pendingEssaysCount: 0,
+        activeRuns: openRuns.map((r: any) => ({
+          Run_ID: r.Run_ID,
+          Run_Name: r.Run_Name,
+          Exam_Name: r.Exam_Name || r.Run_Name,
+          Class_Name: r.Class_Name,
+          Access_Code: r.Access_Code,
+          Active_Takers: 0,
+          Total_Attempts: 0
+        }))
+      });
+    } catch (err) {
+      console.error('Fetch dashboard stats error:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {

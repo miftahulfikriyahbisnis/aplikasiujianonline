@@ -25,15 +25,16 @@ export const DatabaseSettings: React.FC = () => {
     setLoadingTest(true);
     setTestError(null);
     try {
-      const res = await fetch('/api/database/test-full', {
+      const res = await fetch('/api/admin/backend', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'healthCheckFull', data: {} })
       });
       const data = await res.json();
-      if (data.status === 'success') {
+      if (data.status === 'success' || data.ok) {
         setTestResult(data.data);
       } else {
-        setTestError(data.message || 'Gagal menjalankan healthCheckFull ke Google Apps Script');
+        setTestError(data.message || data.error || 'Gagal menjalankan healthCheckFull ke Google Apps Script');
       }
     } catch (err: any) {
       setTestError(err.message || 'Terjadi kesalahan jaringan saat menguji koneksi database');
@@ -45,11 +46,25 @@ export const DatabaseSettings: React.FC = () => {
   const checkBasicStatus = async () => {
     setLoadingBasic(true);
     try {
-      const res = await fetch('/api/check-db');
+      const res = await fetch('/api/admin/backend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'healthCheck', data: {} })
+      });
       const data = await res.json();
-      setBasicStatus(data);
+      setBasicStatus({
+        connected: data.status === 'success' || data.ok,
+        message: (data.status === 'success' || data.ok) ? 'DATABASE TERHUBUNG (Google Sheets)' : 'DATABASE TIDAK TERHUBUNG',
+        url: data.data?.url || '',
+        ...data
+      });
     } catch (err: any) {
       console.error(err);
+      setBasicStatus({
+        connected: false,
+        message: 'DATABASE TIDAK TERHUBUNG',
+        error: err.message
+      });
     } finally {
       setLoadingBasic(false);
     }

@@ -21,10 +21,28 @@ export const ConnectionBanner: React.FC<ConnectionBannerProps> = ({
 
   const fetchStatus = () => {
     setLoading(true);
-    fetch('/api/check-db')
+    fetch('/api/admin/backend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'healthCheck', data: {} })
+    })
       .then(res => res.json())
       .then(data => {
-        setStatus(data);
+        if (data.status === 'success' || data.ok) {
+          setStatus({
+            connected: true,
+            message: 'DATABASE TERHUBUNG (Google Sheets)',
+            url: data.data?.url || '',
+            ...data
+          });
+        } else {
+          setStatus({
+            connected: false,
+            message: 'DATABASE TIDAK TERHUBUNG',
+            url: '',
+            error: data.message || data.error
+          });
+        }
       })
       .catch(err => {
         setStatus({

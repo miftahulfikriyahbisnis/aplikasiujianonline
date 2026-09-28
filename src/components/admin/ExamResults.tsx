@@ -45,13 +45,18 @@ export const ExamResults: React.FC = () => {
   const [resetting, setResetting] = useState(false);
 
   const fetchRuns = () => {
-    fetch('/api/runs')
+    fetch('/api/admin/backend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'listRuns', data: {} })
+    })
       .then(r => r.json())
       .then(r => {
-        if (r.status === 'success') {
-          setRuns(r.data);
-          if (r.data.length > 0 && !selectedRunId) {
-            setSelectedRunId(r.data[0].Run_ID);
+        if (r.status === 'success' || r.ok) {
+          const list = Array.isArray(r.data) ? r.data : [];
+          setRuns(list);
+          if (list.length > 0 && !selectedRunId) {
+            setSelectedRunId(list[0].Run_ID);
           }
         }
       });
@@ -60,10 +65,17 @@ export const ExamResults: React.FC = () => {
   const fetchResults = () => {
     if (!selectedRunId) return;
     setLoading(true);
-    fetch(`/api/results?runId=${selectedRunId}`)
+    fetch('/api/admin/backend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'getRunResults',
+        data: { runId: selectedRunId, Run_ID: selectedRunId }
+      })
+    })
       .then(r => r.json())
       .then(r => {
-        if (r.status === 'success') {
+        if (r.status === 'success' || r.ok) {
           setResults(r.data);
         }
       })
@@ -81,10 +93,17 @@ export const ExamResults: React.FC = () => {
   const handleOpenDetail = (attemptId: string) => {
     setDetailLoading(true);
     setShowDetailModal(true);
-    fetch(`/api/results/student-detail?attemptId=${attemptId}`)
+    fetch('/api/admin/backend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'getStudentAnswers',
+        data: { attemptId, Attempt_ID: attemptId }
+      })
+    })
       .then(r => r.json())
       .then(r => {
-        if (r.status === 'success') {
+        if (r.status === 'success' || r.ok) {
           setDetailData(r.data);
           const initialScores: Record<string, number | string> = {};
           const initialFeedbacks: Record<string, string> = {};
@@ -118,19 +137,25 @@ export const ExamResults: React.FC = () => {
 
     setGradingSaving(prev => ({ ...prev, [qId]: true }));
     try {
-      const res = await fetch('/api/grading/grade', {
+      const res = await fetch('/api/admin/backend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          answerId: q.Answer_ID,
-          attemptId: detailData?.attempt?.Attempt_ID,
-          examQuestionId: q.Exam_Question_ID,
-          manualScore: numScore,
-          feedback: gradingFeedbacks[qId] || ''
+          action: 'gradeEssay',
+          data: {
+            answerId: q.Answer_ID,
+            Answer_ID: q.Answer_ID,
+            attemptId: detailData?.attempt?.Attempt_ID,
+            Attempt_ID: detailData?.attempt?.Attempt_ID,
+            examQuestionId: q.Exam_Question_ID,
+            manualScore: numScore,
+            Manual_Score: numScore,
+            feedback: gradingFeedbacks[qId] || ''
+          }
         })
       });
       const json = await res.json();
-      if (json.status === 'success') {
+      if (json.status === 'success' || json.ok) {
         setGradingSavedSuccess(prev => ({ ...prev, [qId]: true }));
         setTimeout(() => {
           setGradingSavedSuccess(prev => ({ ...prev, [qId]: false }));
@@ -148,7 +173,7 @@ export const ExamResults: React.FC = () => {
           };
         });
       } else {
-        alert('Gagal menyimpan nilai: ' + (json.message || 'Error backend'));
+        alert('Gagal menyimpan nilai: ' + (json.message || json.error || 'Error backend'));
       }
     } catch (err: any) {
       alert('Terjadi kesalahan: ' + err.message);
@@ -165,16 +190,19 @@ export const ExamResults: React.FC = () => {
     setShowExportModal(true);
 
     try {
-      const res = await fetch('/api/export-xlsx', {
+      const res = await fetch('/api/admin/backend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ runId: selectedRunId })
+        body: JSON.stringify({
+          action: 'exportRunXlsx',
+          data: { runId: selectedRunId, Run_ID: selectedRunId }
+        })
       });
       const json = await res.json();
-      if (json.status === 'success' && json.data?.url) {
+      if ((json.status === 'success' || json.ok) && (json.data?.url || json.data?.fileUrl || json.data?.data)) {
         setExportResult(json.data);
       } else {
-        setExportError(json.message || 'Gagal mengekspor file dari Google Apps Script.');
+        setExportError(json.message || json.error || 'Gagal mengekspor file dari Google Apps Script.');
       }
     } catch (err: any) {
       setExportError(err.message || 'Gagal menghubungi server untuk memproses ekspor.');
@@ -187,23 +215,27 @@ export const ExamResults: React.FC = () => {
     e.preventDefault();
     if (!selectedRunId) return;
     setResetting(true);
-    fetch('/api/reset-run', {
+    fetch('/api/admin/backend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        runId: selectedRunId,
-        confirmation: resetConfirmInput
+        action: 'resetRun',
+        data: {
+          runId: selectedRunId,
+          Run_ID: selectedRunId,
+          confirmation: resetConfirmInput
+        }
       })
     })
       .then(r => r.json())
       .then(r => {
-        if (r.status === 'success') {
-          alert(`Berhasil mereset respons ujian: ${r.data.deletedAttempts} attempts, ${r.data.deletedAnswers} jawaban, ${r.data.deletedViolations} pelanggaran dihapus.`);
+        if (r.status === 'success' || r.ok) {
+          alert(`Berhasil mereset respons ujian dari Google Sheets.`);
           setShowResetModal(false);
           setResetConfirmInput('');
           fetchResults();
         } else {
-          alert('Gagal mereset: ' + r.message);
+          alert('Gagal mereset: ' + (r.message || r.error));
         }
       })
       .finally(() => setResetting(false));

@@ -22,19 +22,38 @@ export const ParticipantsManagement: React.FC = () => {
 
   const fetchParticipants = () => {
     setLoading(true);
-    let url = '/api/participants?';
-    if (search) url += `search=${encodeURIComponent(search)}&`;
-    if (selectedClass && selectedClass !== 'ALL') url += `class=${encodeURIComponent(selectedClass)}&`;
-
-    fetch(url, {
-      headers: {
-        ...getAdminAuthHeaders()
-      }
+    fetch('/api/admin/backend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'listUsers',
+        data: {
+          search,
+          className: selectedClass && selectedClass !== 'ALL' ? selectedClass : undefined
+        }
+      })
     })
       .then(r => r.json())
       .then(r => {
-        if (r.status === 'success') {
-          setParticipants(r.data || []);
+        if (r.status === 'success' || r.ok) {
+          let list = r.data || [];
+          if (!Array.isArray(list) && typeof list === 'object') {
+            list = list.users || list.data || [];
+          }
+          if (Array.isArray(list)) {
+            let filtered = list;
+            if (search) {
+              const q = search.toLowerCase();
+              filtered = filtered.filter((u: any) =>
+                (u.Full_Name && u.Full_Name.toLowerCase().includes(q)) ||
+                (u.NIM && u.NIM.toLowerCase().includes(q))
+              );
+            }
+            if (selectedClass && selectedClass !== 'ALL') {
+              filtered = filtered.filter((u: any) => u.Class_Name === selectedClass);
+            }
+            setParticipants(filtered);
+          }
         }
       })
       .catch(console.error)

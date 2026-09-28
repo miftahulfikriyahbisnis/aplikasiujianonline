@@ -14,13 +14,18 @@ export const EssayGrading: React.FC = () => {
   const [savedSuccessId, setSavedSuccessId] = useState<string | null>(null);
 
   const fetchRuns = () => {
-    fetch('/api/runs')
+    fetch('/api/admin/backend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'listRuns', data: {} })
+    })
       .then(r => r.json())
       .then(r => {
-        if (r.status === 'success') {
-          setRuns(r.data);
-          if (r.data.length > 0 && !selectedRunId) {
-            setSelectedRunId(r.data[0].Run_ID);
+        if (r.status === 'success' || r.ok) {
+          const list = Array.isArray(r.data) ? r.data : [];
+          setRuns(list);
+          if (list.length > 0 && !selectedRunId) {
+            setSelectedRunId(list[0].Run_ID);
           }
         }
       });
@@ -29,13 +34,21 @@ export const EssayGrading: React.FC = () => {
   const fetchEssays = () => {
     if (!selectedRunId) return;
     setLoading(true);
-    fetch(`/api/grading/essays?runId=${selectedRunId}`)
+    fetch('/api/admin/backend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'getEssayResponses',
+        data: { runId: selectedRunId, Run_ID: selectedRunId }
+      })
+    })
       .then(r => r.json())
       .then(r => {
-        if (r.status === 'success') {
-          setEssays(r.data);
+        if (r.status === 'success' || r.ok) {
+          const list = Array.isArray(r.data) ? r.data : [];
+          setEssays(list);
           const initial: Record<string, { score: number | string; feedback: string }> = {};
-          r.data.forEach((e: any) => {
+          list.forEach((e: any) => {
             initial[e.Answer_ID] = {
               score: e.Manual_Score !== null && e.Manual_Score !== undefined ? e.Manual_Score : '',
               feedback: e.Lecturer_Feedback || ''
@@ -65,23 +78,29 @@ export const EssayGrading: React.FC = () => {
     }
 
     setSavingId(answerId);
-    fetch('/api/grading/grade', {
+    fetch('/api/admin/backend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        answerId,
-        manualScore: scoreNum,
-        feedback: item.feedback
+        action: 'gradeEssay',
+        data: {
+          answerId,
+          Answer_ID: answerId,
+          manualScore: scoreNum,
+          Manual_Score: scoreNum,
+          feedback: item.feedback,
+          Lecturer_Feedback: item.feedback
+        }
       })
     })
       .then(r => r.json())
       .then(r => {
-        if (r.status === 'success') {
+        if (r.status === 'success' || r.ok) {
           setSavedSuccessId(answerId);
           setTimeout(() => setSavedSuccessId(null), 2000);
           fetchEssays();
         } else {
-          alert('Gagal menyimpan nilai: ' + r.message);
+          alert('Gagal menyimpan nilai: ' + (r.message || r.error));
         }
       })
       .finally(() => setSavingId(null));

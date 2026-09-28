@@ -34,28 +34,40 @@ export const ExamMonitoring: React.FC = () => {
   const timerRef = useRef<any>(null);
 
   const fetchRuns = () => {
-    fetch('/api/runs')
+    fetch('/api/admin/backend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'listRuns', data: {} })
+    })
       .then(r => r.json())
       .then(r => {
-        if (r.status === 'success') {
-          setRuns(r.data);
-          const openRun = r.data.find((x: any) => x.Status === 'OPEN');
+        if (r.status === 'success' || r.ok) {
+          const list = Array.isArray(r.data) ? r.data : [];
+          setRuns(list);
+          const openRun = list.find((x: any) => x.Status === 'OPEN');
           if (openRun && !selectedRunId) {
             setSelectedRunId(openRun.Run_ID);
-          } else if (r.data.length > 0 && !selectedRunId) {
-            setSelectedRunId(r.data[0].Run_ID);
+          } else if (list.length > 0 && !selectedRunId) {
+            setSelectedRunId(list[0].Run_ID);
           }
         }
       });
   };
 
   const fetchMonitoring = () => {
+    if (!selectedRunId) return;
     setLoading(true);
-    const url = selectedRunId ? `/api/monitoring?runId=${selectedRunId}` : '/api/monitoring';
-    fetch(url)
+    fetch('/api/admin/backend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'monitorRun',
+        data: { runId: selectedRunId, Run_ID: selectedRunId }
+      })
+    })
       .then(r => r.json())
       .then(r => {
-        if (r.status === 'success') {
+        if (r.status === 'success' || r.ok) {
           setMonitorData(r.data);
         }
       })
@@ -72,13 +84,19 @@ export const ExamMonitoring: React.FC = () => {
 
   // Auto-refresh interval (5s)
   useEffect(() => {
-    if (autoRefresh) {
+    if (autoRefresh && selectedRunId) {
       timerRef.current = setInterval(() => {
-        const url = selectedRunId ? `/api/monitoring?runId=${selectedRunId}` : '/api/monitoring';
-        fetch(url)
+        fetch('/api/admin/backend', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'monitorRun',
+            data: { runId: selectedRunId, Run_ID: selectedRunId }
+          })
+        })
           .then(r => r.json())
           .then(r => {
-            if (r.status === 'success') setMonitorData(r.data);
+            if (r.status === 'success' || r.ok) setMonitorData(r.data);
           })
           .catch(console.error);
       }, 5000);
@@ -90,19 +108,23 @@ export const ExamMonitoring: React.FC = () => {
 
   const handleGrantPermission = (e: React.FormEvent) => {
     e.preventDefault();
-    fetch('/api/monitoring/permission', {
+    fetch('/api/admin/backend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        attemptId: permAttemptId,
-        type: permType,
-        expiryMinutes: permDuration,
-        reason: permReason
+        action: 'grantPermission',
+        data: {
+          attemptId: permAttemptId,
+          Attempt_ID: permAttemptId,
+          type: permType,
+          expiryMinutes: permDuration,
+          reason: permReason
+        }
       })
     })
       .then(r => r.json())
       .then(r => {
-        if (r.status === 'success') {
+        if (r.status === 'success' || r.ok) {
           setShowPermModal(false);
           fetchMonitoring();
         }
@@ -110,14 +132,17 @@ export const ExamMonitoring: React.FC = () => {
   };
 
   const handleViolationAction = (violationId: string, actionType: 'MUTE' | 'RESOLVE') => {
-    fetch('/api/monitoring/violation-action', {
+    fetch('/api/admin/backend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ violationId, actionType })
+      body: JSON.stringify({
+        action: 'resolveViolation',
+        data: { violationId, Violation_ID: violationId, actionType }
+      })
     })
       .then(r => r.json())
       .then(r => {
-        if (r.status === 'success') {
+        if (r.status === 'success' || r.ok) {
           fetchMonitoring();
           if (selectedStudentVio) {
             setSelectedStudentVio({

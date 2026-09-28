@@ -75,11 +75,26 @@ export const QuestionBankManagement: React.FC = () => {
     if (filterDifficulty) params.set('difficulty', filterDifficulty);
     if (filterStatus) params.set('status', filterStatus);
 
-    fetch(`/api/questions?${params.toString()}`)
+    fetch('/api/admin/backend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'listQuestions',
+        data: {
+          bankId: filterBank,
+          Bank_ID: filterBank,
+          topicId: filterTopic,
+          Topic_ID: filterTopic,
+          questionType: filterType,
+          difficulty: filterDifficulty,
+          status: filterStatus
+        }
+      })
+    })
       .then(res => res.json())
       .then(res => {
-        if (res.status === 'success') {
-          setQuestions(res.data);
+        if (res.status === 'success' || res.ok) {
+          setQuestions(Array.isArray(res.data) ? res.data : []);
         }
       })
       .catch(console.error)
@@ -87,22 +102,38 @@ export const QuestionBankManagement: React.FC = () => {
   };
 
   useEffect(() => {
-    fetch('/api/courses').then(r => r.json()).then(r => { if (r.status === 'success') setCourses(r.data); });
-    fetch('/api/question-banks').then(r => r.json()).then(r => {
-      if (r.status === 'success') {
-        setBanks(r.data);
-        if (r.data.length > 0) {
-          setMcqBankId(r.data[0].Bank_ID);
-          setEssayBankId(r.data[0].Bank_ID);
+    fetch('/api/admin/backend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'listCourses', data: {} })
+    }).then(r => r.json()).then(r => { if (r.status === 'success' || r.ok) setCourses(r.data || []); });
+
+    fetch('/api/admin/backend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'listQuestionBanks', data: {} })
+    }).then(r => r.json()).then(r => {
+      if (r.status === 'success' || r.ok) {
+        const list = Array.isArray(r.data) ? r.data : [];
+        setBanks(list);
+        if (list.length > 0) {
+          setMcqBankId(list[0].Bank_ID);
+          setEssayBankId(list[0].Bank_ID);
         }
       }
     });
-    fetch('/api/topics').then(r => r.json()).then(r => {
-      if (r.status === 'success') {
-        setTopics(r.data);
-        if (r.data.length > 0) {
-          setMcqTopicId(r.data[0].Topic_ID);
-          setEssayTopicId(r.data[0].Topic_ID);
+
+    fetch('/api/admin/backend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'listTopics', data: {} })
+    }).then(r => r.json()).then(r => {
+      if (r.status === 'success' || r.ok) {
+        const list = Array.isArray(r.data) ? r.data : [];
+        setTopics(list);
+        if (list.length > 0) {
+          setMcqTopicId(list[0].Topic_ID);
+          setEssayTopicId(list[0].Topic_ID);
         }
       }
     });
@@ -115,23 +146,29 @@ export const QuestionBankManagement: React.FC = () => {
   // Handlers
   const handleCreateMCQ = (e: React.FormEvent) => {
     e.preventDefault();
-    fetch('/api/questions/mcq', {
+    fetch('/api/admin/backend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        Bank_ID: mcqBankId,
-        Topic_ID: mcqTopicId,
-        Difficulty: mcqDifficulty,
-        Question_Text: mcqText,
-        Image_URL: mcqImageUrl,
-        Default_Points: mcqPoints,
-        Explanation: mcqExplanation,
-        Options: mcqOptions
+        action: 'createQuestion',
+        data: {
+          Bank_ID: mcqBankId,
+          bankId: mcqBankId,
+          Topic_ID: mcqTopicId,
+          topicId: mcqTopicId,
+          Question_Type: 'MCQ',
+          Difficulty: mcqDifficulty,
+          Question_Text: mcqText,
+          Image_URL: mcqImageUrl,
+          Default_Points: mcqPoints,
+          Explanation: mcqExplanation,
+          Options: mcqOptions
+        }
       })
     })
       .then(res => res.json())
       .then(res => {
-        if (res.status === 'success') {
+        if (res.status === 'success' || res.ok) {
           setShowMCQModal(false);
           setMcqText('');
           setMcqImageUrl('');
@@ -144,18 +181,24 @@ export const QuestionBankManagement: React.FC = () => {
 
   const handleCreateEssay = (e: React.FormEvent) => {
     e.preventDefault();
-    fetch('/api/questions/essay', {
+    fetch('/api/admin/backend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        Bank_ID: essayBankId,
-        Topic_ID: essayTopicId,
-        Difficulty: essayDifficulty,
-        Question_Text: essayText,
-        Image_URL: essayImageUrl,
-        Default_Points: essayPoints,
-        Answer_Guide: essayGuide,
-        Explanation: essayExplanation
+        action: 'createQuestion',
+        data: {
+          Bank_ID: essayBankId,
+          bankId: essayBankId,
+          Topic_ID: essayTopicId,
+          topicId: essayTopicId,
+          Question_Type: 'ESSAY',
+          Difficulty: essayDifficulty,
+          Question_Text: essayText,
+          Image_URL: essayImageUrl,
+          Default_Points: essayPoints,
+          Answer_Guide: essayGuide,
+          Explanation: essayExplanation
+        }
       })
     })
       .then(res => res.json())
@@ -194,12 +237,22 @@ export const QuestionBankManagement: React.FC = () => {
   const handleSaveRevision = (e: React.FormEvent) => {
     e.preventDefault();
     if (!targetQuestion) return;
-    fetch('/api/questions/version', {
+    fetch('/api/admin/backend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        questionId: targetQuestion.Question_ID,
-        changes: {
+        action: 'updateQuestion',
+        data: {
+          Question_ID: targetQuestion.Question_ID,
+          questionId: targetQuestion.Question_ID,
+          changes: {
+            Question_Text: revText,
+            Image_URL: revImageUrl,
+            Default_Points: revPoints,
+            Answer_Guide: revGuide,
+            Explanation: revExplanation,
+            Options: revOptions
+          },
           Question_Text: revText,
           Image_URL: revImageUrl,
           Default_Points: revPoints,
@@ -211,7 +264,7 @@ export const QuestionBankManagement: React.FC = () => {
     })
       .then(res => res.json())
       .then(res => {
-        if (res.status === 'success') {
+        if (res.status === 'success' || res.ok) {
           setShowRevisionModal(false);
           fetchQuestions();
         }
@@ -221,14 +274,21 @@ export const QuestionBankManagement: React.FC = () => {
 
   const handleDuplicate = (questionId: string) => {
     if (!confirm('Duplikasi soal ini menjadi soal baru?')) return;
-    fetch('/api/questions/duplicate', {
+    fetch('/api/admin/backend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ questionId })
+      body: JSON.stringify({
+        action: 'createQuestion',
+        data: {
+          Question_ID: questionId,
+          questionId: questionId,
+          duplicateFrom: questionId
+        }
+      })
     })
       .then(res => res.json())
       .then(res => {
-        if (res.status === 'success') {
+        if (res.status === 'success' || res.ok) {
           fetchQuestions();
         }
       })
@@ -236,14 +296,20 @@ export const QuestionBankManagement: React.FC = () => {
   };
 
   const handleArchive = (questionId: string) => {
-    fetch('/api/questions/archive', {
+    fetch('/api/admin/backend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ questionId })
+      body: JSON.stringify({
+        action: 'archiveQuestion',
+        data: {
+          Question_ID: questionId,
+          questionId: questionId
+        }
+      })
     })
       .then(res => res.json())
       .then(res => {
-        if (res.status === 'success') {
+        if (res.status === 'success' || res.ok) {
           fetchQuestions();
         }
       })
