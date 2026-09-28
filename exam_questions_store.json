@@ -32,5 +32,15 @@
       "Question_Number": 1,
       "Is_Required": true
     }
+  ],
+  "EXM-CD7459CEEA52": [
+    {
+      "Exam_Question_ID": "EQ-E3176C1BE0B0",
+      "Exam_ID": "EXM-CD7459CEEA52",
+      "Version_ID": "VER-C2B8154C1911",
+      "Question_Number": 1,
+      "Points": 10,
+      "Is_Required": true
+    }
   ]
 }

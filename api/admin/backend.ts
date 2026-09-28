@@ -107,34 +107,60 @@ export default async function handler(req: any, res: any) {
     const fs = await import('fs');
     const path = await import('path');
     const examQuestionsStorePath = path.join(process.cwd(), 'exam_questions_store.json');
+    const dbSheetsStorePath = path.join(process.cwd(), 'database_sheets_store.json');
 
     function loadExamQuestionsStore(): Record<string, any[]> {
+      const mapped: Record<string, any[]> = {};
       try {
-        if (fs.existsSync(examQuestionsStorePath)) {
-          return JSON.parse(fs.readFileSync(examQuestionsStorePath, 'utf-8'));
-        }
-        // Fallback: check database_sheets_store.json
-        const dbPath = path.join(process.cwd(), 'database_sheets_store.json');
-        if (fs.existsSync(dbPath)) {
-          const dbData = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
+        // First check database_sheets_store.json
+        if (fs.existsSync(dbSheetsStorePath)) {
+          const dbData = JSON.parse(fs.readFileSync(dbSheetsStorePath, 'utf-8'));
           if (Array.isArray(dbData.EXAM_QUESTIONS)) {
-            const mapped: Record<string, any[]> = {};
             dbData.EXAM_QUESTIONS.forEach((eq: any) => {
-              if (!mapped[eq.Exam_ID]) mapped[eq.Exam_ID] = [];
-              mapped[eq.Exam_ID].push(eq);
+              if (eq.Exam_ID) {
+                if (!mapped[eq.Exam_ID]) mapped[eq.Exam_ID] = [];
+                mapped[eq.Exam_ID].push(eq);
+              }
             });
-            return mapped;
           }
+        }
+        // Then merge with exam_questions_store.json (higher precedence for recent updates)
+        if (fs.existsSync(examQuestionsStorePath)) {
+          const fileData = JSON.parse(fs.readFileSync(examQuestionsStorePath, 'utf-8'));
+          Object.entries(fileData).forEach(([examId, list]) => {
+            if (Array.isArray(list) && list.length > 0) {
+              mapped[examId] = list;
+            }
+          });
         }
       } catch (e) {
         console.warn("Failed to load exam questions store:", e);
       }
-      return {};
+      return mapped;
     }
 
     function saveExamQuestionsStore(store: Record<string, any[]>) {
       try {
         fs.writeFileSync(examQuestionsStorePath, JSON.stringify(store, null, 2), 'utf-8');
+        // Also sync to database_sheets_store.json
+        if (fs.existsSync(dbSheetsStorePath)) {
+          const dbData = JSON.parse(fs.readFileSync(dbSheetsStorePath, 'utf-8'));
+          const flatList: any[] = [];
+          Object.entries(store).forEach(([examId, list]) => {
+            (list || []).forEach((q: any, idx: number) => {
+              flatList.push({
+                Exam_Question_ID: q.Exam_Question_ID || `EQ-${examId}-${idx + 1}`,
+                Exam_ID: examId,
+                Version_ID: q.Version_ID,
+                Question_Number: q.Question_Number || (idx + 1),
+                Points: Number(q.Points) || 2,
+                Is_Required: q.Is_Required !== false
+              });
+            });
+          });
+          dbData.EXAM_QUESTIONS = flatList;
+          fs.writeFileSync(dbSheetsStorePath, JSON.stringify(dbData, null, 2), 'utf-8');
+        }
       } catch (e) {
         console.warn("Failed to save exam questions store:", e);
       }
@@ -234,10 +260,51 @@ export default async function handler(req: any, res: any) {
       const examId = clientData.Exam_ID || clientData.examId;
       const store = loadExamQuestionsStore();
       const list = store[examId] || [];
+
+      // Requirement 8: Baca EXAM_QUESTIONS berdasarkan Exam_ID, lalu gabungkan dengan QUESTION_VERSIONS untuk menampilkan teks soal
+      let allQ: any[] = [];
+      try {
+        const qRes = await forwardToAppsScript('listQuestions', {});
+        if (qRes && Array.isArray(qRes.data)) {
+          allQ = qRes.data;
+        }
+      } catch (err) {
+        console.warn("getExamQuestions listQuestions error:", err);
+      }
+
+      const enriched = list.map((eq: any, idx: number) => {
+        const matched = allQ.find((q: any) =>
+          q.Current_Version_ID === eq.Version_ID ||
+          q.Version_ID === eq.Version_ID ||
+          q.Question_ID === eq.Question_ID ||
+          (q.Current_Version && q.Current_Version.Version_ID === eq.Version_ID)
+        );
+        const curVer = matched?.Current_Version || {};
+        return {
+          ...eq,
+          Exam_Question_ID: eq.Exam_Question_ID || `EQ-${examId}-${idx + 1}`,
+          Exam_ID: examId,
+          Version_ID: eq.Version_ID,
+          Question_Number: Number(eq.Question_Number) || (idx + 1),
+          Points: Number(eq.Points) || (matched?.Default_Points !== undefined ? matched.Default_Points : (curVer.Default_Points || 2)),
+          Is_Required: eq.Is_Required !== false,
+          Question_ID: eq.Question_ID || matched?.Question_ID || '',
+          Question_Text: eq.Question_Text || matched?.Question_Text || curVer.Question_Text || '',
+          Question_Type: eq.Question_Type || matched?.Question_Type || 'ESSAY',
+          Difficulty: eq.Difficulty || matched?.Difficulty || 'MEDIUM',
+          Default_Points: matched?.Default_Points !== undefined ? matched.Default_Points : curVer.Default_Points,
+          Image_URL: eq.Image_URL || matched?.Image_URL || curVer.Image_URL || '',
+          Answer_Guide: eq.Answer_Guide || matched?.Answer_Guide || curVer.Answer_Guide || '',
+          Explanation: eq.Explanation || matched?.Explanation || curVer.Explanation || '',
+          Topic_Name: eq.Topic_Name || matched?.Topic_Name || '',
+          Version_Number: Number(eq.Version_Number || matched?.Version_Number || curVer.Version_Number) || 1
+        };
+      });
+
       return res.status(200).json({
         status: 'success',
         ok: true,
-        data: list,
+        data: enriched,
         message: 'Berhasil mengambil daftar soal ujian'
       });
     }
@@ -366,9 +433,10 @@ export default async function handler(req: any, res: any) {
       const examId = clientData.Exam_ID || clientData.examId;
       if (examId) {
         const store = loadExamQuestionsStore();
-        store[examId] = Array.isArray(clientData.questions)
-          ? clientData.questions
-          : (Array.isArray(resultData) ? resultData : []);
+        const savedList = (Array.isArray(resultData) && resultData.length > 0)
+          ? resultData
+          : (Array.isArray(clientData.questions) ? clientData.questions : []);
+        store[examId] = savedList;
         saveExamQuestionsStore(store);
       }
     }
@@ -379,9 +447,10 @@ export default async function handler(req: any, res: any) {
       resultData = resultData.map((e: any) => {
         const eqList = store[e.Exam_ID] || [];
         const totalPoints = eqList.reduce((sum: number, q: any) => sum + (Number(q.Points) || 0), 0);
+        const totalQ = eqList.length > 0 ? eqList.length : (Number(e.Total_Questions) || 0);
         return {
           ...e,
-          Total_Questions: eqList.length,
+          Total_Questions: totalQ,
           Total_Points: totalPoints > 0 ? totalPoints : (Number(e.Total_Points) || 0),
           questions: eqList
         };

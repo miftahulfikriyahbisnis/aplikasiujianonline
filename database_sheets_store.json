@@ -455,6 +455,22 @@
       "Question_Number": 3,
       "Points": 10,
       "Is_Required": true
+    },
+    {
+      "Exam_Question_ID": "EQ-EXM-9076EC1D8847-1",
+      "Exam_ID": "EXM-9076EC1D8847",
+      "Version_ID": "VER-802978333E5B",
+      "Question_Number": 1,
+      "Points": 5,
+      "Is_Required": true
+    },
+    {
+      "Exam_Question_ID": "EQ-E3176C1BE0B0",
+      "Exam_ID": "EXM-CD7459CEEA52",
+      "Version_ID": "VER-C2B8154C1911",
+      "Question_Number": 1,
+      "Points": 10,
+      "Is_Required": true
     }
   ],
   "EXAM_RUNS": [
@@ -736,6 +752,15 @@
   ],
   "PERMISSIONS": [],
   "ADMIN_LOGS": [
+    {
+      "Log_ID": "LOG-20260928-070613-411F",
+      "Admin_ID": "ADMIN",
+      "Action_Type": "LOGIN",
+      "Target_Type": "AUTH",
+      "Target_ID": "ADMIN",
+      "Details": "Admin login berhasil via Apps Script (admin)",
+      "Created_At": "2026-09-28T07:06:13.040Z"
+    },
     {
       "Log_ID": "LOG-20260927-230721-05NE",
       "Admin_ID": "ADMIN",
