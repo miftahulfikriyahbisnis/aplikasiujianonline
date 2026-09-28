@@ -131,17 +131,17 @@ export const ExamManagement: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'listExams', data: {} })
-      }).then(r => r.json()),
+      }).then(r => r.json()).catch(() => ({ ok: false, data: [] })),
       fetch('/api/admin/backend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'listRuns', data: {} })
-      }).then(r => r.json()),
+      }).then(r => r.json()).catch(() => ({ ok: false, data: [] })),
       fetch('/api/admin/backend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'listCourses', data: {} })
-      }).then(r => r.json())
+      }).then(r => r.json()).catch(() => ({ ok: false, data: [] }))
     ])
       .then(([examsRes, runsRes, coursesRes]) => {
         let loadedExams: any[] = [];
@@ -180,6 +180,9 @@ export const ExamManagement: React.FC = () => {
         if (runsRes.status === 'success' || runsRes.ok) {
           setRuns(Array.isArray(runsRes.data) ? runsRes.data : []);
         }
+      })
+      .catch((err) => {
+        console.error("fetchExamsAndRuns error:", err);
       })
       .finally(() => setLoading(false));
   };
@@ -239,16 +242,39 @@ export const ExamManagement: React.FC = () => {
         const bankList = (questionsRes.status === 'success' || questionsRes.ok) && Array.isArray(questionsRes.data)
           ? questionsRes.data
           : [];
-        setAvailableQuestions(bankList);
 
         const currentEqList = (examQuestionsRes.status === 'success' || examQuestionsRes.ok) && Array.isArray(examQuestionsRes.data)
           ? examQuestionsRes.data
           : (Array.isArray(exam.questions) ? exam.questions : []);
 
+        // Pastikan semua butir dari currentEqList ada dalam availableQuestions
+        const mergedAvailable = [...bankList];
+        currentEqList.forEach((eq: any) => {
+          const verId = eq.Version_ID || eq.Exam_Question_ID;
+          const exists = mergedAvailable.some((q: any) =>
+            (q.Current_Version_ID && q.Current_Version_ID === verId) ||
+            (q.Version_ID && q.Version_ID === verId) ||
+            (q.Question_ID && q.Question_ID === eq.Question_ID)
+          );
+          if (!exists) {
+            mergedAvailable.push({
+              Question_ID: eq.Question_ID || `Q-${verId}`,
+              Current_Version_ID: verId,
+              Version_ID: verId,
+              Question_Text: eq.Question_Text || `Soal #${eq.Question_Number || 1} (${verId})`,
+              Question_Type: eq.Question_Type || 'ESSAY',
+              Default_Points: Number(eq.Points) || 2,
+              Version_Number: eq.Version_Number || 1,
+              Topic_Name: eq.Topic_Name || ''
+            });
+          }
+        });
+        setAvailableQuestions(mergedAvailable);
+
         const initialSelection: Record<string, { points: number; selected: boolean }> = {};
 
         // 1. Mapping dari Bank Soal mata kuliah
-        bankList.forEach((q: any) => {
+        mergedAvailable.forEach((q: any) => {
           const verId = q.Current_Version_ID || q.Version_ID || q.Question_ID;
           const existing = currentEqList.find((eq: any) =>
             eq.Version_ID === verId || (eq.Question_ID && eq.Question_ID === q.Question_ID)
@@ -259,7 +285,7 @@ export const ExamManagement: React.FC = () => {
           };
         });
 
-        // 2. Jika ada butir di currentEqList yang belum ada di bankList
+        // 2. Jika ada butir di currentEqList yang belum ada di initialSelection
         currentEqList.forEach((eq: any) => {
           const verId = eq.Version_ID || eq.Exam_Question_ID;
           if (verId && !initialSelection[verId]) {
@@ -357,6 +383,16 @@ export const ExamManagement: React.FC = () => {
                   Total_Questions: newQuestions.length,
                   questions: newQuestions
                 } : null);
+                setExams((prevExams: any[]) => prevExams.map(ex => {
+                  if (ex.Exam_ID === selectedExam.Exam_ID) {
+                    return {
+                      ...ex,
+                      Total_Questions: newQuestions.length,
+                      questions: newQuestions
+                    };
+                  }
+                  return ex;
+                }));
               }
             });
 
@@ -678,7 +714,12 @@ export const ExamManagement: React.FC = () => {
 
   const assignedQuestionsList = availableQuestions.filter(q => {
     const vId = q.Current_Version_ID || q.Version_ID || q.Question_ID;
-    return assignedVersionIds.includes(vId);
+    return (
+      assignedVersionIds.includes(vId) ||
+      (q.Version_ID && assignedVersionIds.includes(q.Version_ID)) ||
+      (q.Current_Version_ID && assignedVersionIds.includes(q.Current_Version_ID)) ||
+      (q.Question_ID && assignedVersionIds.includes(q.Question_ID))
+    );
   });
 
   const searchableBankQuestions = availableQuestions.filter(q => {

@@ -89,7 +89,7 @@ export default async function handler(req: any, res: any) {
         while (resp.status >= 300 && resp.status < 400 && resp.headers.get('location') && redirectCount < 5) {
           redirectCount++;
           const redirectUrl = resp.headers.get('location')!;
-          resp = await fetch(redirectUrl, { method: 'GET', signal: controller.signal, redirect: 'manual' });
+          resp = await fetch(redirectUrl, { method: 'GET', signal: controller.signal });
         }
         const text = await resp.text();
         const trimmed = (text || '').trim();
@@ -261,15 +261,31 @@ export default async function handler(req: any, res: any) {
       const store = loadExamQuestionsStore();
       const list = store[examId] || [];
 
-      // Requirement 8: Baca EXAM_QUESTIONS berdasarkan Exam_ID, lalu gabungkan dengan QUESTION_VERSIONS untuk menampilkan teks soal
+      // Baca teks soal dari database lokal agar respon instan dan tidak memblokir koneksi
       let allQ: any[] = [];
       try {
-        const qRes = await forwardToAppsScript('listQuestions', {});
-        if (qRes && Array.isArray(qRes.data)) {
-          allQ = qRes.data;
+        if (fs.existsSync(dbSheetsStorePath)) {
+          const dbData = JSON.parse(fs.readFileSync(dbSheetsStorePath, 'utf-8'));
+          if (Array.isArray(dbData.QUESTIONS)) {
+            const versionsMap: Record<string, any> = {};
+            if (Array.isArray(dbData.QUESTION_VERSIONS)) {
+              dbData.QUESTION_VERSIONS.forEach((v: any) => {
+                versionsMap[v.Version_ID] = v;
+              });
+            }
+            allQ = dbData.QUESTIONS.map((q: any) => {
+              const curVer = versionsMap[q.Current_Version_ID] || {};
+              return {
+                ...q,
+                Current_Version: curVer,
+                Question_Text: curVer.Question_Text || q.Question_Text || '',
+                Default_Points: curVer.Default_Points !== undefined ? curVer.Default_Points : q.Default_Points
+              };
+            });
+          }
         }
       } catch (err) {
-        console.warn("getExamQuestions listQuestions error:", err);
+        console.warn("getExamQuestions local db read error:", err);
       }
 
       const enriched = list.map((eq: any, idx: number) => {
@@ -361,8 +377,7 @@ export default async function handler(req: any, res: any) {
         const redirectUrl = scriptResponse.headers.get('location')!;
         scriptResponse = await fetch(redirectUrl, {
           method: 'GET',
-          signal: controller.signal,
-          redirect: 'manual'
+          signal: controller.signal
         });
       }
     } catch (fetchErr: any) {
