@@ -131,10 +131,9 @@ export const QuestionBankManagement: React.FC = () => {
       if (r.status === 'success' || r.ok) {
         const list = Array.isArray(r.data) ? r.data : [];
         setTopics(list);
-        if (list.length > 0) {
-          setMcqTopicId(list[0].Topic_ID);
-          setEssayTopicId(list[0].Topic_ID);
-        }
+        // Topic is optional by default
+        setMcqTopicId('');
+        setEssayTopicId('');
       }
     });
   }, []);
@@ -368,9 +367,13 @@ export const QuestionBankManagement: React.FC = () => {
           className="px-2.5 py-1.5 border border-slate-300 rounded-lg bg-white"
         >
           <option value="">Semua Topik</option>
-          {topics.map(t => (
-            <option key={t.Topic_ID} value={t.Topic_ID}>{t.Topic_Name}</option>
-          ))}
+          {topics
+            .filter(t => t.Status !== 'ARCHIVED' || filterStatus === 'ARCHIVED' || !filterStatus)
+            .map(t => (
+              <option key={t.Topic_ID} value={t.Topic_ID}>
+                {t.Topic_Name} {t.Status === 'ARCHIVED' ? '(Arsip)' : ''}
+              </option>
+            ))}
         </select>
 
         <select
@@ -559,13 +562,19 @@ export const QuestionBankManagement: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Topik Pembelajaran</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Topik Pembelajaran (Opsional)</label>
                 <select
                   value={mcqTopicId}
                   onChange={e => setMcqTopicId(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
                 >
-                  {topics.map(t => <option key={t.Topic_ID} value={t.Topic_ID}>{t.Topic_Name}</option>)}
+                  <option value="">-- Tanpa Topik (Opsional) --</option>
+                  {(() => {
+                    const selBank = banks.find(b => b.Bank_ID === mcqBankId);
+                    return topics
+                      .filter(t => t.Status !== 'ARCHIVED' && (!selBank || !t.Course_ID || t.Course_ID === selBank.Course_ID))
+                      .map(t => <option key={t.Topic_ID} value={t.Topic_ID}>{t.Topic_Name}</option>);
+                  })()}
                 </select>
               </div>
               <div>
@@ -697,13 +706,19 @@ export const QuestionBankManagement: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Topik Pembelajaran</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Topik Pembelajaran (Opsional)</label>
                 <select
                   value={essayTopicId}
                   onChange={e => setEssayTopicId(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
                 >
-                  {topics.map(t => <option key={t.Topic_ID} value={t.Topic_ID}>{t.Topic_Name}</option>)}
+                  <option value="">-- Tanpa Topik (Opsional) --</option>
+                  {(() => {
+                    const selBank = banks.find(b => b.Bank_ID === essayBankId);
+                    return topics
+                      .filter(t => t.Status !== 'ARCHIVED' && (!selBank || !t.Course_ID || t.Course_ID === selBank.Course_ID))
+                      .map(t => <option key={t.Topic_ID} value={t.Topic_ID}>{t.Topic_Name}</option>);
+                  })()}
                 </select>
               </div>
               <div>

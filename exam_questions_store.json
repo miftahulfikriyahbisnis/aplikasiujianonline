@@ -1,0 +1,36 @@
+{
+  "EXM001": [
+    {
+      "Exam_Question_ID": "EQ001",
+      "Exam_ID": "EXM001",
+      "Version_ID": "QV001",
+      "Question_Number": 1,
+      "Points": 2,
+      "Is_Required": true
+    },
+    {
+      "Exam_Question_ID": "EQ002",
+      "Exam_ID": "EXM001",
+      "Version_ID": "QV002",
+      "Question_Number": 2,
+      "Points": 2,
+      "Is_Required": true
+    },
+    {
+      "Exam_Question_ID": "EQ003",
+      "Exam_ID": "EXM001",
+      "Version_ID": "QV003",
+      "Question_Number": 3,
+      "Points": 10,
+      "Is_Required": true
+    }
+  ],
+  "EXM-9076EC1D8847": [
+    {
+      "Version_ID": "VER-802978333E5B",
+      "Points": 5,
+      "Question_Number": 1,
+      "Is_Required": true
+    }
+  ]
+}

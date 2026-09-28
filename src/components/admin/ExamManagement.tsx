@@ -10,9 +10,21 @@ import {
   Shield,
   Key,
   ListFilter,
-  Check
+  Check,
+  Edit2,
+  Trash2,
+  Layers,
+  AlertCircle,
+  AlertTriangle,
+  HelpCircle,
+  Eye,
+  EyeOff,
+  Loader2,
+  RefreshCw,
+  X,
+  BookOpen
 } from 'lucide-react';
-import type { ExamItem, ExamRunItem, CourseItem } from '../../types/index.ts';
+import type { ExamRunItem, CourseItem } from '../../types/index.ts';
 
 export const ExamManagement: React.FC = () => {
   const [exams, setExams] = useState<any[]>([]);
@@ -23,12 +35,20 @@ export const ExamManagement: React.FC = () => {
 
   // Modals
   const [showCreateExamModal, setShowCreateExamModal] = useState(false);
-  const [showSelectQuestionsModal, setShowSelectQuestionsModal] = useState(false);
+  const [showKelolaSoalModal, setShowKelolaSoalModal] = useState(false);
   const [showCreateRunModal, setShowCreateRunModal] = useState(false);
+  const [showEditRunModal, setShowEditRunModal] = useState(false);
 
-  // Available questions for selection
+  // Kelola Soal state
+  const [kelolaTab, setKelolaTab] = useState<'assigned' | 'bank'>('assigned');
   const [availableQuestions, setAvailableQuestions] = useState<any[]>([]);
   const [selectedVersionIds, setSelectedVersionIds] = useState<Record<string, { points: number; selected: boolean }>>({});
+  const [savingQuestions, setSavingQuestions] = useState(false);
+  const [kelolaNotice, setKelolaNotice] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  // Filter di Kelola Soal modal
+  const [questionSearch, setQuestionSearch] = useState('');
+  const [questionTypeFilter, setQuestionTypeFilter] = useState('');
 
   // Form Create Exam
   const [newExamName, setNewExamName] = useState('');
@@ -40,6 +60,7 @@ export const ExamManagement: React.FC = () => {
   const [newShuffleQuestions, setNewShuffleQuestions] = useState(false);
   const [newShuffleOptions, setNewShuffleOptions] = useState(false);
   const [newRetentionDays, setNewRetentionDays] = useState(14);
+  const [creatingExam, setCreatingExam] = useState(false);
 
   // Form Create Run
   const [newRunName, setNewRunName] = useState('');
@@ -47,6 +68,22 @@ export const ExamManagement: React.FC = () => {
   const [newAccessCode, setNewAccessCode] = useState('');
   const [newStartAt, setNewStartAt] = useState('');
   const [newEndAt, setNewEndAt] = useState('');
+  const [creatingRun, setCreatingRun] = useState(false);
+
+  // Form Edit Run
+  const [editingRun, setEditingRun] = useState<ExamRunItem | null>(null);
+  const [editRunName, setEditRunName] = useState('');
+  const [editRunClass, setEditRunClass] = useState('');
+  const [editRunAccessCode, setEditRunAccessCode] = useState('');
+  const [editRunStartAt, setEditRunStartAt] = useState('');
+  const [editRunEndAt, setEditRunEndAt] = useState('');
+  const [editRunStatus, setEditRunStatus] = useState<'OPEN' | 'CLOSED'>('OPEN');
+  const [updatingRun, setUpdatingRun] = useState(false);
+
+  // General notices & filters
+  const [runNotice, setRunNotice] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [showArchivedRuns, setShowArchivedRuns] = useState(false);
+  const [deletingRunId, setDeletingRunId] = useState<string | null>(null);
 
   const fetchExamsAndRuns = () => {
     setLoading(true);
@@ -66,31 +103,79 @@ export const ExamManagement: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'listCourses', data: {} })
       }).then(r => r.json())
-    ]).then(([examsRes, runsRes, coursesRes]) => {
-      if (examsRes.status === 'success' || examsRes.ok) {
-        setExams(Array.isArray(examsRes.data) ? examsRes.data : []);
-        if (examsRes.data && examsRes.data.length > 0 && !selectedExam) {
-          setSelectedExam(examsRes.data[0]);
+    ])
+      .then(([examsRes, runsRes, coursesRes]) => {
+        let loadedExams: any[] = [];
+        let loadedCourses: CourseItem[] = [];
+
+        if (coursesRes.status === 'success' || coursesRes.ok) {
+          loadedCourses = Array.isArray(coursesRes.data) ? coursesRes.data : [];
+          setCourses(loadedCourses);
+          if (loadedCourses.length > 0 && !newCourseId) {
+            setNewCourseId(loadedCourses[0].Course_ID);
+          }
         }
-      }
-      if (runsRes.status === 'success' || runsRes.ok) setRuns(Array.isArray(runsRes.data) ? runsRes.data : []);
-      if (coursesRes.status === 'success' || coursesRes.ok) {
-        const cList = Array.isArray(coursesRes.data) ? coursesRes.data : [];
-        setCourses(cList);
-        if (cList.length > 0 && !newCourseId) {
-          setNewCourseId(cList[0].Course_ID);
+
+        if (examsRes.status === 'success' || examsRes.ok) {
+          const rawExams = Array.isArray(examsRes.data) ? examsRes.data : [];
+          // Enrich Course_Name if empty
+          loadedExams = rawExams.map((e: any) => {
+            const course = loadedCourses.find(c => c.Course_ID === e.Course_ID);
+            return {
+              ...e,
+              Course_Name: e.Course_Name || course?.Course_Name || e.Course_ID
+            };
+          });
+          setExams(loadedExams);
+
+          // Update selected exam to latest object
+          setSelectedExam((prev: any) => {
+            if (prev) {
+              const matched = loadedExams.find(e => e.Exam_ID === prev.Exam_ID);
+              return matched || (loadedExams.length > 0 ? loadedExams[0] : null);
+            }
+            return loadedExams.length > 0 ? loadedExams[0] : null;
+          });
         }
-      }
-    }).finally(() => setLoading(false));
+
+        if (runsRes.status === 'success' || runsRes.ok) {
+          setRuns(Array.isArray(runsRes.data) ? runsRes.data : []);
+        }
+      })
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     fetchExamsAndRuns();
   }, []);
 
-  // Open question selector modal
-  const openQuestionSelector = (exam: any) => {
+  // Format date helper
+  const formatDate = (isoString?: string) => {
+    if (!isoString) return '-';
+    try {
+      const d = new Date(isoString);
+      return d.toLocaleDateString('id-ID', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return isoString;
+    }
+  };
+
+  // -------------------------------------------------------------
+  // FITUR: KELOLA SOAL PADA UJIAN (Requirement C)
+  // -------------------------------------------------------------
+  const openKelolaSoal = (exam: any) => {
     setSelectedExam(exam);
+    setKelolaNotice(null);
+    setQuestionSearch('');
+    setQuestionTypeFilter('');
+
+    // Ambil soal aktif dari Bank Soal mata kuliah tersebut
     fetch('/api/admin/backend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -104,24 +189,43 @@ export const ExamManagement: React.FC = () => {
         if (r.status === 'success' || r.ok) {
           const list = Array.isArray(r.data) ? r.data : [];
           setAvailableQuestions(list);
+
+          // Mapping soal yang sudah masuk ke ujian
+          const currentQuestions = Array.isArray(exam.questions) ? exam.questions : [];
           const initialSelection: Record<string, { points: number; selected: boolean }> = {};
+
           list.forEach((q: any) => {
             const verId = q.Current_Version_ID || q.Version_ID || q.Question_ID;
-            if (verId) {
-              initialSelection[verId] = {
-                points: q.Default_Points || 2,
-                selected: true
-              };
-            }
+            const existing = currentQuestions.find((eq: any) => eq.Version_ID === verId);
+            initialSelection[verId] = {
+              points: existing ? (Number(existing.Points) || q.Default_Points || 2) : (q.Default_Points || 2),
+              selected: !!existing
+            };
           });
+
           setSelectedVersionIds(initialSelection);
-          setShowSelectQuestionsModal(true);
+
+          // Tentukan tab awal: jika sudah ada soal, buka daftar soal masuk, jika kosong buka tab bank
+          if (currentQuestions.length > 0) {
+            setKelolaTab('assigned');
+          } else {
+            setKelolaTab('bank');
+          }
+          setShowKelolaSoalModal(true);
+        } else {
+          alert('Gagal mengambil daftar soal bank: ' + (r.message || r.error));
         }
+      })
+      .catch(err => {
+        console.error(err);
+        alert('Terjadi kesalahan koneksi saat memuat soal.');
       });
   };
 
-  const handleSaveExamQuestions = () => {
+  // Tambahkan / Simpan Soal ke Ujian (1 klik = 1 request ke setExamQuestions)
+  const handleSaveQuestionsToExam = () => {
     if (!selectedExam) return;
+
     const items = Object.entries(selectedVersionIds)
       .filter(([_, v]) => (v as { points: number; selected: boolean }).selected)
       .map(([vId, v], idx) => ({
@@ -131,14 +235,22 @@ export const ExamManagement: React.FC = () => {
         Is_Required: true
       }));
 
+    if (items.length === 0) {
+      alert('Pilih minimal 1 butir soal dengan mencentang kotak pilihan sebelum menyimpan.');
+      return;
+    }
+
+    setSavingQuestions(true);
+    setKelolaNotice(null);
+
     fetch('/api/admin/backend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'setExamQuestions',
         data: {
-          examId: selectedExam.Exam_ID,
           Exam_ID: selectedExam.Exam_ID,
+          examId: selectedExam.Exam_ID,
           questions: items
         }
       })
@@ -146,12 +258,82 @@ export const ExamManagement: React.FC = () => {
       .then(r => r.json())
       .then(r => {
         if (r.status === 'success' || r.ok) {
-          setShowSelectQuestionsModal(false);
+          setKelolaNotice({
+            message: `Berhasil menetapkan ${items.length} butir soal ke ujian "${selectedExam.Exam_Name}". Data tersimpan di Google Sheets.`,
+            type: 'success'
+          });
+          // Refresh list ujian agar jumlah soal terbarui
           fetchExamsAndRuns();
+          setKelolaTab('assigned');
+        } else {
+          setKelolaNotice({
+            message: 'Gagal menyimpan soal ujian: ' + (r.message || r.error),
+            type: 'error'
+          });
         }
-      });
+      })
+      .catch(err => {
+        console.error(err);
+        setKelolaNotice({ message: 'Terjadi kesalahan jaringan saat menyimpan soal.', type: 'error' });
+      })
+      .finally(() => setSavingQuestions(false));
   };
 
+  // Mengeluarkan soal dari ujian (tanpa menghapus dari Bank Soal)
+  const handleRemoveQuestionFromExam = (versionIdToRemove: string) => {
+    if (!selectedExam) return;
+
+    const updatedSelection = {
+      ...selectedVersionIds,
+      [versionIdToRemove]: {
+        ...selectedVersionIds[versionIdToRemove],
+        selected: false
+      }
+    };
+    setSelectedVersionIds(updatedSelection);
+
+    const items = Object.entries(updatedSelection)
+      .filter(([_, v]) => (v as { points: number; selected: boolean }).selected)
+      .map(([vId, v], idx) => ({
+        Version_ID: vId,
+        Question_Number: idx + 1,
+        Points: (v as { points: number; selected: boolean }).points,
+        Is_Required: true
+      }));
+
+    setSavingQuestions(true);
+    fetch('/api/admin/backend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'setExamQuestions',
+        data: {
+          Exam_ID: selectedExam.Exam_ID,
+          examId: selectedExam.Exam_ID,
+          questions: items
+        }
+      })
+    })
+      .then(r => r.json())
+      .then(r => {
+        if (r.status === 'success' || r.ok) {
+          setKelolaNotice({
+            message: 'Soal berhasil dikeluarkan dari ujian (tetap aman di Bank Soal).',
+            type: 'info'
+          });
+          fetchExamsAndRuns();
+        } else {
+          setKelolaNotice({
+            message: 'Gagal memperbarui ujian: ' + (r.message || r.error),
+            type: 'error'
+          });
+        }
+      })
+      .catch(console.error)
+      .finally(() => setSavingQuestions(false));
+  };
+
+  // Publish exam
   const handlePublishExam = (examId: string) => {
     if (!confirm('Publikasikan ujian ini? Soal akan dikunci ke versi yang dipilih.')) return;
     fetch('/api/admin/backend', {
@@ -177,15 +359,19 @@ export const ExamManagement: React.FC = () => {
       });
   };
 
+  // Buat Blueprint Ujian Baru
   const handleCreateExam = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!newExamName.trim() || !newCourseId) return;
+
+    setCreatingExam(true);
     fetch('/api/admin/backend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'createExam',
         data: {
-          Exam_Name: newExamName,
+          Exam_Name: newExamName.trim(),
           Course_ID: newCourseId,
           Duration_Minutes: newDuration,
           Instructions: newInstructions,
@@ -203,13 +389,43 @@ export const ExamManagement: React.FC = () => {
           setShowCreateExamModal(false);
           setNewExamName('');
           fetchExamsAndRuns();
+        } else {
+          alert('Gagal membuat blueprint ujian: ' + (r.message || r.error));
         }
-      });
+      })
+      .catch(console.error)
+      .finally(() => setCreatingExam(false));
+  };
+
+  // -------------------------------------------------------------
+  // FITUR: JANGAN IZINKAN MEMBUAT SESI DARI UJIAN KOSONG (Req D)
+  // -------------------------------------------------------------
+  const handleOpenCreateRunModal = () => {
+    if (!selectedExam) return;
+    const qCount = Number(selectedExam.Total_Questions) || (selectedExam.questions?.length) || 0;
+    if (qCount === 0) {
+      alert('Ujian belum memiliki soal. Tambahkan soal terlebih dahulu melalui Kelola Soal.');
+      return;
+    }
+
+    setNewRunName(`Sesi Ujian ${selectedExam.Exam_Name}`);
+    setNewRunClass('Kelas A');
+    setNewAccessCode('');
+    setShowCreateRunModal(true);
   };
 
   const handleCreateRun = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedExam) return;
+
+    // Double check: cegah jika ujian belum memiliki butir soal
+    const qCount = Number(selectedExam.Total_Questions) || (selectedExam.questions?.length) || 0;
+    if (qCount === 0) {
+      alert('Ujian belum memiliki soal. Tambahkan soal terlebih dahulu melalui Kelola Soal.');
+      return;
+    }
+
+    setCreatingRun(true);
     fetch('/api/admin/backend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -218,9 +434,9 @@ export const ExamManagement: React.FC = () => {
         data: {
           Exam_ID: selectedExam.Exam_ID,
           examId: selectedExam.Exam_ID,
-          Run_Name: newRunName || `Sesi Ujian ${selectedExam.Exam_Name}`,
-          Class_Name: newRunClass,
-          Access_Code: newAccessCode || undefined,
+          Run_Name: newRunName.trim() || `Sesi Ujian ${selectedExam.Exam_Name}`,
+          Class_Name: newRunClass.trim() || 'Kelas A',
+          Access_Code: newAccessCode.trim().toUpperCase() || undefined,
           Start_At: newStartAt || new Date().toISOString(),
           End_At: newEndAt || new Date(Date.now() + 5 * 3600 * 1000).toISOString(),
           Status: 'OPEN'
@@ -233,9 +449,106 @@ export const ExamManagement: React.FC = () => {
           setShowCreateRunModal(false);
           setNewRunName('');
           setNewAccessCode('');
+          setRunNotice({ message: 'Sesi ujian berhasil dibuka di Google Sheets.', type: 'success' });
+          setTimeout(() => setRunNotice(null), 4000);
           fetchExamsAndRuns();
+        } else {
+          alert('Gagal membuka sesi ujian: ' + (r.message || r.error));
         }
-      });
+      })
+      .catch(console.error)
+      .finally(() => setCreatingRun(false));
+  };
+
+  // -------------------------------------------------------------
+  // FITUR: EDIT & HAPUS SESI UJIAN (Requirement E)
+  // -------------------------------------------------------------
+  const handleOpenEditRun = (run: ExamRunItem) => {
+    setEditingRun(run);
+    setEditRunName(run.Run_Name);
+    setEditRunClass(run.Class_Name);
+    setEditRunAccessCode(run.Access_Code);
+    setEditRunStartAt(run.Start_At ? run.Start_At.slice(0, 16) : '');
+    setEditRunEndAt(run.End_At ? run.End_At.slice(0, 16) : '');
+    setEditRunStatus((run.Status as any) === 'CLOSED' ? 'CLOSED' : 'OPEN');
+    setShowEditRunModal(true);
+  };
+
+  const handleSaveEditRun = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingRun) return;
+
+    setUpdatingRun(true);
+    fetch('/api/admin/backend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'updateRun',
+        data: {
+          Run_ID: editingRun.Run_ID,
+          runId: editingRun.Run_ID,
+          Run_Name: editRunName.trim(),
+          Class_Name: editRunClass.trim(),
+          Access_Code: editRunAccessCode.trim().toUpperCase(),
+          Start_At: editRunStartAt ? new Date(editRunStartAt).toISOString() : editingRun.Start_At,
+          End_At: editRunEndAt ? new Date(editRunEndAt).toISOString() : editingRun.End_At,
+          Status: editRunStatus
+        }
+      })
+    })
+      .then(r => r.json())
+      .then(r => {
+        if (r.status === 'success' || r.ok) {
+          setShowEditRunModal(false);
+          setEditingRun(null);
+          setRunNotice({ message: 'Sesi ujian berhasil diperbarui.', type: 'success' });
+          setTimeout(() => setRunNotice(null), 4000);
+          fetchExamsAndRuns();
+        } else {
+          alert('Gagal memperbarui sesi ujian: ' + (r.message || r.error));
+        }
+      })
+      .catch(console.error)
+      .finally(() => setUpdatingRun(false));
+  };
+
+  // Hapus Sesi: selalu memeriksa ATTEMPTS sebelum melakukan hard delete
+  const handleDeleteRun = (run: ExamRunItem) => {
+    const isConfirmed = window.confirm(`Apakah Anda yakin ingin menghapus sesi ujian "${run.Run_Name}"?`);
+    if (!isConfirmed) return;
+
+    setDeletingRunId(run.Run_ID);
+    setRunNotice(null);
+
+    fetch('/api/admin/backend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'deleteRun',
+        data: {
+          Run_ID: run.Run_ID,
+          runId: run.Run_ID
+        }
+      })
+    })
+      .then(r => r.json())
+      .then(r => {
+        if (r.status === 'success' || r.ok) {
+          setRunNotice({
+            message: r.message || 'Sesi ujian berhasil diproses.',
+            type: r.hasAttempts ? 'info' : 'success'
+          });
+          setTimeout(() => setRunNotice(null), 5000);
+          fetchExamsAndRuns();
+        } else {
+          alert('Gagal menghapus sesi: ' + (r.message || r.error));
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        alert('Terjadi kesalahan jaringan saat menghapus sesi.');
+      })
+      .finally(() => setDeletingRunId(null));
   };
 
   const handleUpdateRunStatus = (runId: string, status: 'OPEN' | 'CLOSED') => {
@@ -254,11 +567,39 @@ export const ExamManagement: React.FC = () => {
     })
       .then(r => r.json())
       .then(r => {
-        if (r.status === 'success' || r.ok) fetchExamsAndRuns();
+        if (r.status === 'success' || r.ok) {
+          fetchExamsAndRuns();
+        }
       });
   };
 
-  const filteredRuns = selectedExam ? runs.filter(r => r.Exam_ID === selectedExam.Exam_ID) : runs;
+  // Filter runs untuk ujian yang dipilih
+  const allRunsForSelectedExam = selectedExam ? runs.filter(r => r.Exam_ID === selectedExam.Exam_ID) : runs;
+  const filteredRuns = showArchivedRuns
+    ? allRunsForSelectedExam
+    : allRunsForSelectedExam.filter(r => r.Status !== 'CANCELLED' && r.Status !== 'ARCHIVED' && (r as any).Data_Status !== 'DELETED');
+
+  // Filter available questions di Kelola Soal modal
+  const assignedVersionIds = Object.entries(selectedVersionIds)
+    .filter(([_, v]) => (v as { points: number; selected: boolean }).selected)
+    .map(([vId]) => vId);
+
+  const assignedQuestionsList = availableQuestions.filter(q => {
+    const vId = q.Current_Version_ID || q.Version_ID || q.Question_ID;
+    return assignedVersionIds.includes(vId);
+  });
+
+  const searchableBankQuestions = availableQuestions.filter(q => {
+    if (questionTypeFilter && q.Question_Type !== questionTypeFilter) return false;
+    if (questionSearch) {
+      const search = questionSearch.toLowerCase();
+      const txt = (q.Question_Text || '').toLowerCase();
+      const topic = (q.Topic_Name || '').toLowerCase();
+      const bnk = (q.Bank_Name || '').toLowerCase();
+      if (!txt.includes(search) && !topic.includes(search) && !bnk.includes(search)) return false;
+    }
+    return true;
+  });
 
   return (
     <div className="space-y-6">
@@ -267,40 +608,58 @@ export const ExamManagement: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Manajemen Blueprint & Sesi Ujian</h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            Penyusunan blueprint ujian, penguncian butir soal spesifik (Version_ID), dan aktivasi sesi ujian (Run).
+            Penyusunan blueprint ujian, pengelolaan butir soal (EXAM_QUESTIONS), dan aktivasi sesi kelas (EXAM_RUNS).
           </p>
         </div>
-        <button
-          onClick={() => setShowCreateExamModal(true)}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-sky-800 hover:bg-sky-900 rounded-lg transition cursor-pointer shadow-xs"
-        >
-          <Plus className="w-4 h-4" />
-          Buat Blueprint Ujian Baru
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={fetchExamsAndRuns}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition cursor-pointer shadow-xs disabled:opacity-50"
+            title="Segarkan dari Google Sheets"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <span>Segarkan</span>
+          </button>
+          <button
+            onClick={() => setShowCreateExamModal(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-sky-800 hover:bg-sky-900 rounded-lg transition cursor-pointer shadow-xs"
+          >
+            <Plus className="w-4 h-4" />
+            Buat Blueprint Ujian Baru
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Exam Blueprint List (Left) */}
         <div className="lg:col-span-5 space-y-3">
           <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-4">
-            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
-              Daftar Ujian ({exams.length})
+            <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center justify-between">
+              <span>Daftar Ujian ({exams.length})</span>
+              {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-sky-800" />}
             </h2>
             <div className="space-y-2.5">
+              {exams.length === 0 && !loading && (
+                <div className="p-6 text-center text-xs text-slate-500 border border-dashed border-slate-200 rounded-lg">
+                  Belum ada ujian. Klik &ldquo;Buat Blueprint Ujian Baru&rdquo; untuk memulai.
+                </div>
+              )}
               {exams.map(e => {
                 const isSelected = selectedExam?.Exam_ID === e.Exam_ID;
+                const totalQ = Number(e.Total_Questions) || (e.questions?.length) || 0;
                 return (
                   <div
                     key={e.Exam_ID}
                     onClick={() => setSelectedExam(e)}
                     className={`p-3.5 rounded-xl border transition cursor-pointer flex flex-col gap-2 ${
                       isSelected
-                        ? 'border-sky-600 bg-sky-50/60 shadow-xs'
+                        ? 'border-sky-600 bg-sky-50/70 shadow-xs'
                         : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-mono font-bold text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200">
+                      <span className="text-xs font-mono font-bold text-slate-600 bg-white px-1.5 py-0.5 rounded border border-slate-200">
                         {e.Exam_ID}
                       </span>
                       <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
@@ -313,11 +672,32 @@ export const ExamManagement: React.FC = () => {
                     </div>
 
                     <div className="font-bold text-slate-800 text-sm">{e.Exam_Name}</div>
-                    <div className="text-xs text-slate-500">{e.Course_Name}</div>
+                    <div className="text-xs text-slate-500 flex items-center gap-1.5">
+                      <BookOpen className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{e.Course_Name}</span>
+                    </div>
 
+                    {/* Menampilkan Jumlah Soal secara jelas (Req C.13) */}
                     <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 text-xs text-slate-600">
-                      <span>{e.Total_Questions} Soal ({e.Total_Points} Poin)</span>
+                      <span className={`font-semibold ${totalQ === 0 ? 'text-amber-700' : 'text-sky-800'}`}>
+                        {totalQ} Soal {e.Total_Points ? `(${e.Total_Points} Poin)` : ''}
+                      </span>
                       <span>{e.Duration_Minutes} Menit</span>
+                    </div>
+
+                    {/* Tombol Cepat: Kelola Soal */}
+                    <div className="pt-1 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          openKelolaSoal(e);
+                        }}
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-800 hover:text-sky-950 bg-white hover:bg-sky-50 px-2 py-1 rounded border border-sky-300 transition cursor-pointer shadow-2xs"
+                      >
+                        <Layers className="w-3 h-3" />
+                        <span>Kelola Soal</span>
+                      </button>
                     </div>
                   </div>
                 );
@@ -350,17 +730,24 @@ export const ExamManagement: React.FC = () => {
                         Publish Ujian
                       </button>
                     )}
+                    {/* Tombol Kelola Soal (Req C) */}
                     <button
-                      onClick={() => openQuestionSelector(selectedExam)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-50 text-sky-800 border border-sky-200 hover:bg-sky-100 text-xs font-semibold transition cursor-pointer"
+                      onClick={() => openKelolaSoal(selectedExam)}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-sky-800 text-white hover:bg-sky-900 text-xs font-semibold transition cursor-pointer shadow-xs"
                     >
-                      <Lock className="w-3.5 h-3.5" />
-                      Pilih & Kunci Soal ({selectedExam.Total_Questions})
+                      <Layers className="w-3.5 h-3.5" />
+                      <span>Kelola Soal ({Number(selectedExam.Total_Questions) || selectedExam.questions?.length || 0})</span>
                     </button>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-100 text-xs text-slate-600">
+                  <div className="p-2 bg-slate-50 rounded-lg">
+                    <span className="block text-[11px] text-slate-400">Total Soal</span>
+                    <strong className="text-sky-800 font-mono text-sm">
+                      {Number(selectedExam.Total_Questions) || selectedExam.questions?.length || 0} Butir
+                    </strong>
+                  </div>
                   <div className="p-2 bg-slate-50 rounded-lg">
                     <span className="block text-[11px] text-slate-400">Durasi</span>
                     <strong className="text-slate-800 font-mono">{selectedExam.Duration_Minutes} Menit</strong>
@@ -373,78 +760,180 @@ export const ExamManagement: React.FC = () => {
                     <span className="block text-[11px] text-slate-400">Fullscreen</span>
                     <strong className="text-slate-800">{selectedExam.Fullscreen_Required ? 'Wajib' : 'Opsional'}</strong>
                   </div>
-                  <div className="p-2 bg-slate-50 rounded-lg">
-                    <span className="block text-[11px] text-slate-400">Retensi</span>
-                    <strong className="text-slate-800">{selectedExam.Response_Retention_Days} Hari</strong>
-                  </div>
                 </div>
               </div>
 
               {/* Sesi Ujian (Exam Runs) List */}
               <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-                <div className="px-5 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                <div className="px-5 py-4 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <PlayCircle className="w-4 h-4 text-emerald-700" />
                     <h3 className="text-sm font-bold text-slate-800">
-                      Sesi Ujian Aktif (Exam Runs) ({filteredRuns.length})
+                      Sesi Ujian ({filteredRuns.length})
                     </h3>
                   </div>
-                  <button
-                    onClick={() => {
-                      setNewRunName(`Sesi Ujian ${selectedExam.Exam_Name}`);
-                      setShowCreateRunModal(true);
-                    }}
-                    className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white transition cursor-pointer shadow-xs"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Buka Sesi Ujian Baru
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowArchivedRuns(!showArchivedRuns)}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg border transition cursor-pointer ${
+                        showArchivedRuns
+                          ? 'bg-amber-50 text-amber-800 border-amber-300'
+                          : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'
+                      }`}
+                    >
+                      {showArchivedRuns ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      <span>{showArchivedRuns ? 'Sembunyikan Batal/Arsip' : 'Lihat Sesi Dibatalkan'}</span>
+                    </button>
+                    {/* Buka Sesi Ujian Baru (Dengan Validasi Ujian Kosong Req D) */}
+                    <button
+                      onClick={handleOpenCreateRunModal}
+                      className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white transition cursor-pointer shadow-xs"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Buka Sesi Ujian Baru
+                    </button>
+                  </div>
                 </div>
 
+                {/* Sesi Action Notice */}
+                {runNotice && (
+                  <div className={`px-5 py-2.5 text-xs font-medium flex items-center justify-between ${
+                    runNotice.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-b border-emerald-100' :
+                    runNotice.type === 'error' ? 'bg-rose-50 text-rose-800 border-b border-rose-100' :
+                    'bg-sky-50 text-sky-800 border-b border-sky-100'
+                  }`}>
+                    <span>{runNotice.message}</span>
+                    <button onClick={() => setRunNotice(null)} className="text-xs font-bold px-1.5">✕</button>
+                  </div>
+                )}
+
+                {/* Daftar Sesi: Menampilkan Hubungan Sesi dengan Ujian Secara Jelas (Req F) */}
                 <div className="divide-y divide-slate-100">
                   {filteredRuns.length > 0 ? (
-                    filteredRuns.map(run => (
-                      <div key={run.Run_ID} className="p-4 flex flex-wrap items-center justify-between gap-4 hover:bg-slate-50 transition">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-slate-800 text-sm">{run.Run_Name}</span>
-                            <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                              run.Status === 'OPEN'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-slate-100 text-slate-600'
-                            }`}>
-                              {run.Status}
-                            </span>
-                          </div>
-                          <div className="text-xs text-slate-500 flex items-center gap-3">
-                            <span>Kelas: <strong>{run.Class_Name}</strong></span>
-                            <span>•</span>
-                            <span>Kode Akses: <strong className="font-mono text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-bold">{run.Access_Code}</strong></span>
-                          </div>
-                        </div>
+                    filteredRuns.map(run => {
+                      const isCancelled = run.Status === 'CANCELLED' || run.Status === 'ARCHIVED';
+                      const examTotalQ = Number(selectedExam.Total_Questions) || selectedExam.questions?.length || 0;
 
-                        <div className="flex items-center gap-2">
-                          {run.Status === 'OPEN' ? (
-                            <button
-                              onClick={() => handleUpdateRunStatus(run.Run_ID, 'CLOSED')}
-                              className="px-2.5 py-1 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition cursor-pointer"
-                            >
-                              Tutup Sesi (CLOSE)
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => handleUpdateRunStatus(run.Run_ID, 'OPEN')}
-                              className="px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition cursor-pointer"
-                            >
-                              Buka Kembali (OPEN)
-                            </button>
-                          )}
+                      return (
+                        <div key={run.Run_ID} className={`p-4 space-y-3 transition ${isCancelled ? 'bg-slate-50/60 opacity-80' : 'hover:bg-slate-50/70'}`}>
+                          {/* Sesi Header */}
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-slate-900 text-sm">
+                                Sesi: <span className="text-sky-900">{run.Run_Name}</span>
+                              </span>
+                              <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                                run.Status === 'OPEN'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : isCancelled
+                                  ? 'bg-rose-100 text-rose-800'
+                                  : 'bg-slate-200 text-slate-700'
+                              }`}>
+                                {run.Status}
+                              </span>
+                            </div>
+                            <span className="text-[11px] font-mono text-slate-400">ID: {run.Run_ID}</span>
+                          </div>
+
+                          {/* Hubungan Ujian & Informasi Sesi (Req F) */}
+                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 p-3 bg-slate-50 rounded-lg border border-slate-200/80 text-xs">
+                            <div>
+                              <span className="text-slate-400 block text-[10px] font-semibold uppercase">Ujian</span>
+                              <strong className="text-slate-800 font-medium block truncate" title={selectedExam.Exam_Name}>
+                                {selectedExam.Exam_Name}
+                              </strong>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block text-[10px] font-semibold uppercase">Mata Kuliah</span>
+                              <strong className="text-slate-800 font-medium block truncate" title={selectedExam.Course_Name}>
+                                {selectedExam.Course_Name}
+                              </strong>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block text-[10px] font-semibold uppercase">Soal</span>
+                              <strong className="text-sky-800 font-bold block">{examTotalQ} Soal</strong>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block text-[10px] font-semibold uppercase">Kelas</span>
+                              <strong className="text-slate-800 font-medium block">{run.Class_Name}</strong>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block text-[10px] font-semibold uppercase">Access Code</span>
+                              <strong className="font-mono text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 font-bold inline-block">
+                                {run.Access_Code}
+                              </strong>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block text-[10px] font-semibold uppercase">Jadwal Sesi</span>
+                              <span className="text-slate-600 block text-[11px]">
+                                {formatDate(run.Start_At)}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Tombol Aksi Sesi: Edit, Status, Hapus Sesi (Req E) */}
+                          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                            <div className="text-[11px] text-slate-500">
+                              Batas Akhir: {formatDate(run.End_At)}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              {/* Tombol Toggle Status OPEN / CLOSED */}
+                              {!isCancelled && (
+                                <>
+                                  {run.Status === 'OPEN' ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateRunStatus(run.Run_ID, 'CLOSED')}
+                                      className="px-2.5 py-1 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition cursor-pointer"
+                                    >
+                                      Tutup Sesi
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateRunStatus(run.Run_ID, 'OPEN')}
+                                      className="px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition cursor-pointer"
+                                    >
+                                      Buka Sesi
+                                    </button>
+                                  )}
+
+                                  {/* Tombol Edit Sesi (Req E) */}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEditRun(run)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-sky-800 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded-lg transition cursor-pointer"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                    <span>Edit</span>
+                                  </button>
+                                </>
+                              )}
+
+                              {/* Tombol Hapus Sesi (Req E) */}
+                              <button
+                                type="button"
+                                disabled={deletingRunId === run.Run_ID}
+                                onClick={() => handleDeleteRun(run)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition cursor-pointer disabled:opacity-50"
+                              >
+                                {deletingRunId === run.Run_ID ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                )}
+                                <span>Hapus Sesi</span>
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   ) : (
                     <div className="p-8 text-center text-xs text-slate-500">
-                      Belum ada sesi ujian untuk ujian ini. Klik "Buka Sesi Ujian Baru" di atas.
+                      {allRunsForSelectedExam.length > 0 && !showArchivedRuns
+                        ? 'Sesi ujian saat ini dalam status diarsipkan/dibatalkan. Klik "Lihat Sesi Dibatalkan" untuk melihatnya.'
+                        : 'Belum ada sesi ujian untuk ujian ini. Klik "Buka Sesi Ujian Baru" di atas.'}
                     </div>
                   )}
                 </div>
@@ -458,7 +947,278 @@ export const ExamManagement: React.FC = () => {
         </div>
       </div>
 
-      {/* Modal Create Exam Blueprint */}
+      {/* ============================================================= */}
+      {/* MODAL: KELOLA SOAL UJIAN (Requirement C)                       */}
+      {/* ============================================================= */}
+      {showKelolaSoalModal && selectedExam && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-white rounded-xl max-w-4xl w-full p-6 shadow-2xl border border-slate-200 space-y-4 my-8">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                  <Layers className="w-5 h-5 text-sky-800" />
+                  <span>Kelola Soal Ujian: {selectedExam.Exam_Name}</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Mata Kuliah: <strong>{selectedExam.Course_Name}</strong> • Alur: Bank Soal → Soal Versi Terkunci → Ujian
+                </p>
+              </div>
+              <button
+                onClick={() => setShowKelolaSoalModal(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Notice in modal */}
+            {kelolaNotice && (
+              <div className={`p-3 rounded-lg text-xs font-semibold flex items-center justify-between ${
+                kelolaNotice.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
+                kelolaNotice.type === 'error' ? 'bg-rose-50 text-rose-800 border border-rose-200' :
+                'bg-sky-50 text-sky-800 border border-sky-200'
+              }`}>
+                <span>{kelolaNotice.message}</span>
+                <button onClick={() => setKelolaNotice(null)} className="text-xs font-bold px-1.5">✕</button>
+              </div>
+            )}
+
+            {/* Tab Selector */}
+            <div className="flex border-b border-slate-200">
+              <button
+                type="button"
+                onClick={() => setKelolaTab('assigned')}
+                className={`px-4 py-2 text-xs font-bold transition border-b-2 cursor-pointer ${
+                  kelolaTab === 'assigned'
+                    ? 'border-sky-800 text-sky-800 bg-sky-50/50'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Soal yang Sudah Masuk ke Ujian ({assignedQuestionsList.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setKelolaTab('bank')}
+                className={`px-4 py-2 text-xs font-bold transition border-b-2 cursor-pointer ${
+                  kelolaTab === 'bank'
+                    ? 'border-sky-800 text-sky-800 bg-sky-50/50'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Pilih dari Bank Soal ({availableQuestions.length})
+              </button>
+            </div>
+
+            {/* TAB 1: DAFTAR SOAL YANG SUDAH MASUK KE UJIAN */}
+            {kelolaTab === 'assigned' && (
+              <div className="space-y-3">
+                <div className="max-h-[55vh] overflow-y-auto divide-y divide-slate-100 pr-1">
+                  {assignedQuestionsList.length > 0 ? (
+                    assignedQuestionsList.map((q, idx) => {
+                      const verId = q.Current_Version_ID || q.Version_ID || q.Question_ID;
+                      const pts = selectedVersionIds[verId]?.points ?? q.Default_Points ?? 2;
+
+                      return (
+                        <div key={q.Question_ID} className="p-3.5 flex flex-wrap items-start justify-between gap-3 hover:bg-slate-50/80 rounded-lg">
+                          <div className="flex items-start gap-3 flex-1 min-w-[240px]">
+                            <span className="font-bold text-slate-700 font-mono text-xs mt-0.5 px-2 py-0.5 bg-slate-100 rounded border border-slate-200">
+                              #{idx + 1}
+                            </span>
+                            <div className="space-y-1">
+                              <div className="flex flex-wrap items-center gap-2 text-xs">
+                                <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                                  q.Question_Type === 'MCQ' ? 'bg-sky-100 text-sky-800' : 'bg-amber-100 text-amber-800'
+                                }`}>
+                                  {q.Question_Type === 'MCQ' ? 'PILIHAN GANDA' : 'ESSAY'}
+                                </span>
+                                {q.Topic_Name && (
+                                  <span className="text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded text-[11px]">
+                                    Topik: {q.Topic_Name}
+                                  </span>
+                                )}
+                                <span className="text-slate-400 font-mono text-[10px]">v{q.Version_Number || 1}</span>
+                              </div>
+                              <p className="text-xs text-slate-800 line-clamp-2">{q.Question_Text}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 shrink-0">
+                            <div className="text-xs text-right">
+                              <span className="text-[10px] text-slate-400 block font-semibold">Bobot Poin</span>
+                              <strong className="text-sky-800 font-mono text-sm">{pts} Poin</strong>
+                            </div>
+                            {/* Tombol Keluarkan dari Ujian (Req C.9) */}
+                            <button
+                              type="button"
+                              disabled={savingQuestions}
+                              onClick={() => handleRemoveQuestionFromExam(verId)}
+                              className="px-2.5 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition cursor-pointer shadow-2xs disabled:opacity-50"
+                              title="Keluarkan butir soal dari ujian (soal tetap tersimpan di Bank Soal)"
+                            >
+                              Keluarkan
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="p-12 text-center text-xs text-slate-500">
+                      Ujian ini belum memiliki soal. Buka tab &ldquo;Pilih dari Bank Soal&rdquo; di atas untuk memilih dan memasukkan butir soal.
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs">
+                  <span className="font-semibold text-slate-700">
+                    Total Soal Aktif di Ujian: {assignedQuestionsList.length} Butir
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setKelolaTab('bank')}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-sky-50 text-sky-800 hover:bg-sky-100 font-semibold transition cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Tambah Soal dari Bank</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: PILIH DARI BANK SOAL */}
+            {kelolaTab === 'bank' && (
+              <div className="space-y-3">
+                {/* Filter and Search */}
+                <div className="flex flex-wrap items-center gap-2 p-2.5 bg-slate-50 rounded-lg text-xs">
+                  <input
+                    type="text"
+                    value={questionSearch}
+                    onChange={e => setQuestionSearch(e.target.value)}
+                    placeholder="Cari teks soal / topik..."
+                    className="px-2.5 py-1 border border-slate-300 rounded-lg bg-white flex-1 min-w-[180px]"
+                  />
+                  <select
+                    value={questionTypeFilter}
+                    onChange={e => setQuestionTypeFilter(e.target.value)}
+                    className="px-2.5 py-1 border border-slate-300 rounded-lg bg-white"
+                  >
+                    <option value="">Semua Tipe (MCQ & Essay)</option>
+                    <option value="MCQ">Pilihan Ganda (MCQ)</option>
+                    <option value="ESSAY">Essay / Uraian</option>
+                  </select>
+                </div>
+
+                <div className="max-h-[50vh] overflow-y-auto divide-y divide-slate-100 pr-1">
+                  {searchableBankQuestions.length > 0 ? (
+                    searchableBankQuestions.map((q, idx) => {
+                      const verId = q.Current_Version_ID || q.Version_ID || q.Question_ID;
+                      const isChecked = selectedVersionIds[verId]?.selected ?? false;
+                      const pts = selectedVersionIds[verId]?.points ?? (q.Default_Points || 2);
+
+                      return (
+                        <div
+                          key={q.Question_ID}
+                          className={`p-3 flex items-start gap-3 rounded-lg transition ${
+                            isChecked ? 'bg-sky-50/60' : 'hover:bg-slate-50'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={e => {
+                              setSelectedVersionIds(prev => ({
+                                ...prev,
+                                [verId]: {
+                                  points: pts,
+                                  selected: e.target.checked
+                                }
+                              }));
+                            }}
+                            className="w-4 h-4 mt-1 text-sky-700 rounded cursor-pointer"
+                          />
+                          <div className="flex-1 space-y-1">
+                            <div className="flex flex-wrap items-center gap-2 text-xs">
+                              <span className="font-bold text-slate-700">#{idx + 1}</span>
+                              <span className={`px-1.5 py-0.5 rounded text-[11px] font-bold ${
+                                q.Question_Type === 'MCQ' ? 'bg-sky-100 text-sky-800' : 'bg-amber-100 text-amber-800'
+                              }`}>
+                                {q.Question_Type === 'MCQ' ? 'MCQ' : 'ESSAY'}
+                              </span>
+                              <span className="text-slate-500 font-mono text-[10px]">v{q.Version_Number || 1}</span>
+                              {q.Topic_Name && (
+                                <span className="text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded text-[11px]">
+                                  {q.Topic_Name}
+                                </span>
+                              )}
+                              {isChecked && (
+                                <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                                  ✓ Dipilih untuk Ujian
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-slate-800 line-clamp-2">{q.Question_Text}</p>
+                          </div>
+                          <div className="w-24 shrink-0">
+                            <label className="block text-[10px] text-slate-500 font-semibold mb-0.5">Poin</label>
+                            <input
+                              type="number"
+                              min={1}
+                              value={pts}
+                              onChange={e => {
+                                const val = Number(e.target.value);
+                                setSelectedVersionIds(prev => ({
+                                  ...prev,
+                                  [verId]: {
+                                    points: val,
+                                    selected: isChecked
+                                  }
+                                }));
+                              }}
+                              className="w-full px-2 py-1 border border-slate-300 rounded text-xs text-center font-bold"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="p-12 text-center text-xs text-slate-500">
+                      Tidak ada butir soal yang sesuai pada Bank Soal mata kuliah ini.
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                  <span className="text-xs font-semibold text-slate-700">
+                    Total Terpilih: {Object.values(selectedVersionIds).filter((x: any) => x.selected).length} Soal
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowKelolaSoalModal(false)}
+                      className="px-3.5 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg cursor-pointer"
+                    >
+                      Tutup
+                    </button>
+                    {/* Tombol Tambahkan ke Ujian (Req C.5 & C.11: 1 klik = 1 request) */}
+                    <button
+                      type="button"
+                      disabled={savingQuestions}
+                      onClick={handleSaveQuestionsToExam}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-sky-800 hover:bg-sky-900 rounded-lg cursor-pointer shadow-xs disabled:opacity-50"
+                    >
+                      {savingQuestions && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      <span>{savingQuestions ? 'Menyimpan...' : 'Tambahkan ke Ujian'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================= */}
+      {/* MODAL: BUAT BLUEPRINT UJIAN BARU                              */}
+      {/* ============================================================= */}
       {showCreateExamModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
           <form onSubmit={handleCreateExam} className="bg-white rounded-xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 space-y-4 my-8">
@@ -551,115 +1311,31 @@ export const ExamManagement: React.FC = () => {
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 text-xs font-semibold text-white bg-sky-800 hover:bg-sky-900 rounded-lg cursor-pointer shadow-xs"
+                disabled={creatingExam}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-sky-800 hover:bg-sky-900 rounded-lg cursor-pointer shadow-xs disabled:opacity-50"
               >
-                Simpan Blueprint
+                {creatingExam && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>Simpan Blueprint</span>
               </button>
             </div>
           </form>
         </div>
       )}
 
-      {/* Modal Lock & Select Questions */}
-      {showSelectQuestionsModal && selectedExam && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
-          <div className="bg-white rounded-xl max-w-3xl w-full p-6 shadow-2xl border border-slate-200 space-y-4 my-8">
-            <div className="flex items-center justify-between border-b pb-3">
-              <div>
-                <h3 className="text-lg font-bold text-slate-800">Pilih & Kunci Butir Soal untuk Ujian</h3>
-                <p className="text-xs text-slate-500">
-                  Soal yang dipilih akan dikunci permanen pada versi terkini (<code>Version_ID</code>).
-                </p>
-              </div>
-            </div>
-
-            <div className="max-h-[60vh] overflow-y-auto divide-y divide-slate-100 space-y-2">
-              {availableQuestions.map((q, idx) => {
-                const isChecked = selectedVersionIds[q.Current_Version_ID]?.selected ?? true;
-                const pts = selectedVersionIds[q.Current_Version_ID]?.points ?? q.Default_Points;
-                return (
-                  <div key={q.Question_ID} className="p-3 flex items-start gap-3 hover:bg-slate-50 rounded-lg">
-                    <input
-                      type="checkbox"
-                      checked={isChecked}
-                      onChange={e => {
-                        setSelectedVersionIds(prev => ({
-                          ...prev,
-                          [q.Current_Version_ID]: {
-                            points: pts,
-                            selected: e.target.checked
-                          }
-                        }));
-                      }}
-                      className="w-4 h-4 mt-1 text-sky-700 rounded"
-                    />
-                    <div className="flex-1 space-y-1">
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="font-bold text-slate-700">#{idx + 1}</span>
-                        <span className="font-mono text-slate-500">{q.Question_ID}</span>
-                        <span className="font-semibold text-sky-800 bg-sky-50 px-1.5 py-0.5 rounded text-[11px]">
-                          {q.Question_Type} (v{q.Version_Number})
-                        </span>
-                        <span className="text-slate-400">•</span>
-                        <span className="text-slate-500">{q.Topic_Name}</span>
-                      </div>
-                      <p className="text-xs text-slate-800 line-clamp-2">{q.Question_Text}</p>
-                    </div>
-                    <div className="w-24">
-                      <label className="block text-[10px] text-slate-500 font-semibold mb-0.5">Poin</label>
-                      <input
-                        type="number"
-                        min={1}
-                        value={pts}
-                        onChange={e => {
-                          const val = Number(e.target.value);
-                          setSelectedVersionIds(prev => ({
-                            ...prev,
-                            [q.Current_Version_ID]: {
-                              points: val,
-                              selected: isChecked
-                            }
-                          }));
-                        }}
-                        className="w-full px-2 py-1 border border-slate-300 rounded text-xs text-center font-bold"
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-              <span className="text-xs font-semibold text-slate-600">
-                Total Terpilih: {Object.values(selectedVersionIds).filter((x: any) => x.selected).length} Soal
-              </span>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setShowSelectQuestionsModal(false)}
-                  className="px-3.5 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  onClick={handleSaveExamQuestions}
-                  className="px-4 py-2 text-xs font-semibold text-white bg-sky-800 hover:bg-sky-900 rounded-lg cursor-pointer shadow-xs"
-                >
-                  Simpan & Kunci Butir Soal
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Create Run */}
+      {/* ============================================================= */}
+      {/* MODAL: BUKA SESI UJIAN BARU (EXAM_RUNS)                        */}
+      {/* ============================================================= */}
       {showCreateRunModal && selectedExam && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <form onSubmit={handleCreateRun} className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-            <h3 className="text-lg font-bold text-slate-800">Buka Sesi Ujian Baru (Exam Run)</h3>
-            <p className="text-xs text-slate-500">
-              Ujian: <strong>{selectedExam.Exam_Name}</strong>
-            </p>
+            <h3 className="text-lg font-bold text-slate-800">Buka Sesi Ujian Baru</h3>
+            <div className="p-3 bg-sky-50 rounded-lg border border-sky-200 text-xs space-y-0.5">
+              <div className="font-bold text-sky-950">Ujian: {selectedExam.Exam_Name}</div>
+              <div className="text-sky-800">Mata Kuliah: {selectedExam.Course_Name}</div>
+              <div className="text-sky-800 font-semibold">
+                Jumlah Soal: {Number(selectedExam.Total_Questions) || selectedExam.questions?.length || 0} Butir
+              </div>
+            </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Nama Sesi Ujian</label>
@@ -674,7 +1350,7 @@ export const ExamManagement: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Nama Kelas / Rombel</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Nama Kelas / Rombel Target</label>
               <input
                 type="text"
                 required
@@ -698,6 +1374,27 @@ export const ExamManagement: React.FC = () => {
               />
             </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Waktu Mulai</label>
+                <input
+                  type="datetime-local"
+                  value={newStartAt}
+                  onChange={e => setNewStartAt(e.target.value)}
+                  className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Waktu Selesai</label>
+                <input
+                  type="datetime-local"
+                  value={newEndAt}
+                  onChange={e => setNewEndAt(e.target.value)}
+                  className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs"
+                />
+              </div>
+            </div>
+
             <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
               <button
                 type="button"
@@ -708,9 +1405,109 @@ export const ExamManagement: React.FC = () => {
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg cursor-pointer shadow-xs"
+                disabled={creatingRun}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg cursor-pointer shadow-xs disabled:opacity-50"
               >
-                Buka Sesi Ujian Sekarang
+                {creatingRun && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>Buka Sesi Ujian Sekarang</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ============================================================= */}
+      {/* MODAL: EDIT SESI UJIAN (Requirement E)                         */}
+      {/* ============================================================= */}
+      {showEditRunModal && editingRun && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <form onSubmit={handleSaveEditRun} className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <h3 className="text-lg font-bold text-slate-800">Edit Sesi Ujian</h3>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Nama Sesi Ujian</label>
+              <input
+                type="text"
+                required
+                value={editRunName}
+                onChange={e => setEditRunName(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Kelas / Rombel</label>
+              <input
+                type="text"
+                required
+                value={editRunClass}
+                onChange={e => setEditRunClass(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Kode Akses Mahasiswa</label>
+              <input
+                type="text"
+                required
+                value={editRunAccessCode}
+                onChange={e => setEditRunAccessCode(e.target.value.toUpperCase())}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-mono uppercase"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Waktu Mulai</label>
+                <input
+                  type="datetime-local"
+                  value={editRunStartAt}
+                  onChange={e => setEditRunStartAt(e.target.value)}
+                  className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Waktu Selesai</label>
+                <input
+                  type="datetime-local"
+                  value={editRunEndAt}
+                  onChange={e => setEditRunEndAt(e.target.value)}
+                  className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Status Sesi</label>
+              <select
+                value={editRunStatus}
+                onChange={e => setEditRunStatus(e.target.value as any)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
+              >
+                <option value="OPEN">OPEN (Sesi Terbuka / Mahasiswa Dapat Mengerjakan)</option>
+                <option value="CLOSED">CLOSED (Sesi Ditutup)</option>
+              </select>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEditRunModal(false);
+                  setEditingRun(null);
+                }}
+                className="px-3.5 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={updatingRun}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-sky-800 hover:bg-sky-900 rounded-lg cursor-pointer shadow-xs disabled:opacity-50"
+              >
+                {updatingRun && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>Simpan Perubahan Sesi</span>
               </button>
             </div>
           </form>
