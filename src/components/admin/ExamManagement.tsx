@@ -32,7 +32,8 @@ export const ExamManagement: React.FC = () => {
   const [runs, setRuns] = useState<ExamRunItem[]>([]);
   const [courses, setCourses] = useState<CourseItem[]>([]);
   const [selectedExam, setSelectedExam] = useState<any | null>(null);
-  const [loading, setLoading] = useState(true);\n  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Modals
   const [showCreateExamModal, setShowCreateExamModal] = useState(false);
@@ -126,22 +127,41 @@ export const ExamManagement: React.FC = () => {
 
   const fetchExamsAndRuns = () => {
     setLoading(true);
+    setLoadError(null);
     Promise.all([
       fetch('/api/admin/backend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'listExams', data: {} })
-      }).then(async r => {\n        const body = await r.json();\n        if (!r.ok || body?.ok === false || body?.status === 'error') {\n          throw new Error(body?.message || 'Gagal memuat daftar ujian.');\n        }\n        return body;\n      }),
+      }).then(async r => {
+        const body = await r.json();
+        if (!r.ok || body?.ok === false || body?.status === 'error') {
+          throw new Error(body?.message || 'Gagal memuat daftar ujian.');
+        }
+        return body;
+      }),
       fetch('/api/admin/backend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'listRuns', data: {} })
-      }).then(async r => {\n        const body = await r.json();\n        if (!r.ok || body?.ok === false || body?.status === 'error') {\n          throw new Error(body?.message || 'Gagal memuat daftar sesi ujian.');\n        }\n        return body;\n      }),
+      }).then(async r => {
+        const body = await r.json();
+        if (!r.ok || body?.ok === false || body?.status === 'error') {
+          throw new Error(body?.message || 'Gagal memuat daftar sesi ujian.');
+        }
+        return body;
+      }),
       fetch('/api/admin/backend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'listCourses', data: {} })
-      }).then(async r => {\n        const body = await r.json();\n        if (!r.ok || body?.ok === false || body?.status === 'error') {\n          throw new Error(body?.message || 'Gagal memuat mata kuliah.');\n        }\n        return body;\n      })
+      }).then(async r => {
+        const body = await r.json();
+        if (!r.ok || body?.ok === false || body?.status === 'error') {
+          throw new Error(body?.message || 'Gagal memuat mata kuliah.');
+        }
+        return body;
+      })
     ])
       .then(([examsRes, runsRes, coursesRes]) => {
         let loadedExams: any[] = [];
@@ -183,6 +203,7 @@ export const ExamManagement: React.FC = () => {
       })
       .catch((err) => {
         console.error("fetchExamsAndRuns error:", err);
+        setLoadError(err?.message || "Gagal mengambil data dari Google Sheets. Silakan klik Segarkan.");
       })
       .finally(() => setLoading(false));
   };
