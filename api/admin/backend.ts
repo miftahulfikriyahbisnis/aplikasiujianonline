@@ -1,11 +1,14 @@
 /**
  * Server-Side Admin Backend API Route for Vercel & Production
  * Route: POST /api/admin/backend
- * Flow: Browser -> /api/admin/backend -> Vercel server -> Google Apps Script -> Google Sheets
+ * Source of truth: Google Apps Script -> Google Sheets
+ *
+ * IMPORTANT:
+ * - Vercel local filesystem is NOT used as a database or persistent cache.
+ * - All admin data is read/written through Google Apps Script.
  */
 
 export default async function handler(req: any, res: any) {
-  // CORS headers
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -13,12 +16,12 @@ export default async function handler(req: any, res: any) {
     'Access-Control-Allow-Headers',
     'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization'
   );
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
-  // 1. Hanya menerima request POST
   if (req.method !== 'POST') {
     return res.status(405).json({
       status: 'error',
@@ -28,7 +31,6 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    // 2. Menerima action dan data dari frontend
     let body = req.body;
     if (typeof body === 'string') {
       try {
@@ -39,10 +41,12 @@ export default async function handler(req: any, res: any) {
     }
 
     const action = body?.action ? String(body.action).trim() : '';
-    const clientData = body?.data !== undefined ? body.data : (body?.payload !== undefined ? body.payload : {});
-
-    // Required temporary server log
-    console.log("ADMIN BACKEND API CALLED", action);
+    const clientData =
+      body?.data !== undefined
+        ? body.data
+        : body?.payload !== undefined
+          ? body.payload
+          : {};
 
     if (!action) {
       return res.status(400).json({
@@ -52,454 +56,347 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    // 3. Membaca process.env.APPS_SCRIPT_API_URL dan process.env.APPS_SCRIPT_API_SECRET
+    console.log('ADMIN BACKEND API CALLED', action);
+
     const appsScriptUrl = (process.env.APPS_SCRIPT_API_URL || '').trim();
     const appsScriptSecret = (process.env.APPS_SCRIPT_API_SECRET || '').trim();
 
     if (!appsScriptUrl) {
-      console.error("ADMIN BACKEND ERROR: APPS_SCRIPT_API_URL belum dikonfigurasi di Environment Variables");
       return res.status(500).json({
         status: 'error',
         ok: false,
-        message: 'Konfigurasi server belum lengkap: APPS_SCRIPT_API_URL belum tersedia di Environment Variables Vercel.'
+        message:
+          'Konfigurasi server belum lengkap: APPS_SCRIPT_API_URL belum tersedia di Environment Variables Vercel.'
       });
     }
 
-    // Helper to send action to Google Apps Script
-    async function forwardToAppsScript(targetAction: string, targetData: any) {
+    /**
+     * Single path for all communication with Apps Script.
+     * The browser never receives the Apps Script secret.
+     */
+    const forwardToAppsScript = async (targetAction: string, targetData: any) => {
       const payload: any = {
         action: targetAction,
-        data: targetData,
-        payload: targetData
+        data: targetData ?? {},
+        payload: targetData ?? {}
       };
+
       if (appsScriptSecret) payload.secret = appsScriptSecret;
       if (body?.token) payload.token = body.token;
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 90000);
+      const timeoutId = setTimeout(() => controller.abort(), 45000);
+
       try {
-        let resp = await fetch(appsScriptUrl, {
+        let response = await fetch(appsScriptUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
           redirect: 'manual',
           signal: controller.signal
         });
+
         let redirectCount = 0;
-        while (resp.status >= 300 && resp.status < 400 && resp.headers.get('location') && redirectCount < 5) {
-          redirectCount++;
-          const redirectUrl = resp.headers.get('location')!;
-          resp = await fetch(redirectUrl, { method: 'GET', signal: controller.signal });
+        while (
+          response.status >= 300 &&
+          response.status < 400 &&
+          response.headers.get('location') &&
+          redirectCount < 5
+        ) {
+          redirectCount += 1;
+          const redirectUrl = response.headers.get('location')!;
+          response = await fetch(redirectUrl, {
+            method: 'GET',
+            redirect: 'manual',
+            signal: controller.signal
+          });
         }
-        const text = await resp.text();
-        const trimmed = (text || '').trim();
+
+        const rawText = await response.text();
+        const text = (rawText || '').trim();
+
+        if (!text) {
+          throw new Error('Google Apps Script mengembalikan respons kosong.');
+        }
+
+        if (text.startsWith('<!DOCTYPE') || text.toLowerCase().includes('<html')) {
+          throw new Error(
+            'Google Apps Script mengembalikan halaman HTML. Pastikan deployment Web App disetel ke akses "Anyone" dan URL deployment benar.'
+          );
+        }
+
         try {
-          return JSON.parse(trimmed);
+          return JSON.parse(text);
         } catch {
-          return { ok: false, status: 'error', message: trimmed };
+          throw new Error(
+            `Google Apps Script mengembalikan respons non-JSON: ${text.substring(0, 200)}`
+          );
         }
+      } catch (error: any) {
+        if (error?.name === 'AbortError') {
+          throw new Error('Koneksi ke Google Apps Script timeout (>45 detik).');
+        }
+        throw error;
       } finally {
         clearTimeout(timeoutId);
       }
-    }
+    };
 
-    // Exam questions local persistence path
-    const fs = await import('fs');
-    const path = await import('path');
-    const examQuestionsStorePath = path.join(process.cwd(), 'exam_questions_store.json');
-    const dbSheetsStorePath = path.join(process.cwd(), 'database_sheets_store.json');
+    const scriptSucceeded = (value: any) =>
+      value && value.ok !== false && value.status !== 'error';
 
-    function loadExamQuestionsStore(): Record<string, any[]> {
-      const mapped: Record<string, any[]> = {};
-      try {
-        // First check database_sheets_store.json
-        if (fs.existsSync(dbSheetsStorePath)) {
-          const dbData = JSON.parse(fs.readFileSync(dbSheetsStorePath, 'utf-8'));
-          if (Array.isArray(dbData.EXAM_QUESTIONS)) {
-            dbData.EXAM_QUESTIONS.forEach((eq: any) => {
-              if (eq.Exam_ID) {
-                if (!mapped[eq.Exam_ID]) mapped[eq.Exam_ID] = [];
-                mapped[eq.Exam_ID].push(eq);
-              }
-            });
-          }
-        }
-        // Then merge with exam_questions_store.json (higher precedence for recent updates)
-        if (fs.existsSync(examQuestionsStorePath)) {
-          const fileData = JSON.parse(fs.readFileSync(examQuestionsStorePath, 'utf-8'));
-          Object.entries(fileData).forEach(([examId, list]) => {
-            if (Array.isArray(list) && list.length > 0) {
-              mapped[examId] = list;
-            }
-          });
-        }
-      } catch (e) {
-        console.warn("Failed to load exam questions store:", e);
-      }
-      return mapped;
-    }
+    const dataFrom = (value: any) =>
+      value?.data !== undefined ? value.data : value;
 
-    function saveExamQuestionsStore(store: Record<string, any[]>) {
-      try {
-        fs.writeFileSync(examQuestionsStorePath, JSON.stringify(store, null, 2), 'utf-8');
-        // Also sync to database_sheets_store.json
-        if (fs.existsSync(dbSheetsStorePath)) {
-          const dbData = JSON.parse(fs.readFileSync(dbSheetsStorePath, 'utf-8'));
-          const flatList: any[] = [];
-          Object.entries(store).forEach(([examId, list]) => {
-            (list || []).forEach((q: any, idx: number) => {
-              flatList.push({
-                Exam_Question_ID: q.Exam_Question_ID || `EQ-${examId}-${idx + 1}`,
-                Exam_ID: examId,
-                Version_ID: q.Version_ID,
-                Question_Number: q.Question_Number || (idx + 1),
-                Points: Number(q.Points) || 2,
-                Is_Required: q.Is_Required !== false
-              });
-            });
-          });
-          dbData.EXAM_QUESTIONS = flatList;
-          fs.writeFileSync(dbSheetsStorePath, JSON.stringify(dbData, null, 2), 'utf-8');
-        }
-      } catch (e) {
-        console.warn("Failed to save exam questions store:", e);
-      }
-    }
+    const normalizeQuestion = (q: any) => {
+      const version = q?.Current_Version || {};
+      return {
+        ...q,
+        Question_Text:
+          q?.Question_Text || version.Question_Text || q?.question_text || q?.text || '',
+        Default_Points:
+          q?.Default_Points !== undefined
+            ? q.Default_Points
+            : version.Default_Points !== undefined
+              ? version.Default_Points
+              : null,
+        Version_Number:
+          Number(q?.Version_Number || version.Version_Number) || 1,
+        Image_URL: q?.Image_URL || version.Image_URL || '',
+        Answer_Guide: q?.Answer_Guide || version.Answer_Guide || '',
+        Explanation: q?.Explanation || version.Explanation || ''
+      };
+    };
 
-    // -------------------------------------------------------------
-    // Custom Handlers for deleteRun & deleteTopic & getExamQuestions
-    // -------------------------------------------------------------
+    // UI helper: "hapus sesi" tetap menjaga data pengerjaan mahasiswa.
     if (action === 'deleteRun') {
-      const runId = clientData.Run_ID || clientData.runId;
+      const runId = clientData?.Run_ID || clientData?.runId;
       if (!runId) {
-        return res.status(400).json({ status: 'error', ok: false, message: 'Run_ID wajib disertakan.' });
+        return res.status(400).json({
+          status: 'error',
+          ok: false,
+          message: 'Run_ID wajib disertakan.'
+        });
       }
 
-      // Selalu cek ATTEMPTS berdasarkan Run_ID sebelum melakukan hapus
-      let attemptsCount = 0;
-      try {
-        const monitorRes = await forwardToAppsScript('monitorRun', { Run_ID: runId, runId });
-        if (monitorRes && Array.isArray(monitorRes.data)) {
-          attemptsCount = monitorRes.data.length;
-        }
-      } catch (err) {
-        console.warn("deleteRun monitor check error:", err);
+      const monitorResponse = await forwardToAppsScript('monitorRun', {
+        Run_ID: runId,
+        runId
+      });
+      const attempts = scriptSucceeded(monitorResponse)
+        ? dataFrom(monitorResponse)
+        : [];
+      const attemptsCount = Array.isArray(attempts) ? attempts.length : 0;
+
+      const nextStatus = attemptsCount > 0 ? 'CANCELLED' : 'ARCHIVED';
+      const updatePayload: any = {
+        Run_ID: runId,
+        runId,
+        Status: nextStatus,
+        status: nextStatus
+      };
+
+      if (attemptsCount === 0) {
+        updatePayload.Data_Status = 'DELETED';
       }
 
-      if (attemptsCount > 0) {
-        // Jika Run_ID SUDAH memiliki ATTEMPTS: jangan hard delete, ubah status menjadi CANCELLED/ARCHIVED
-        const updateRes = await forwardToAppsScript('updateRun', {
-          Run_ID: runId,
-          runId,
-          Status: 'CANCELLED',
-          status: 'CANCELLED'
-        });
-        return res.status(200).json({
-          status: 'success',
-          ok: true,
-          hasAttempts: true,
-          data: updateRes?.data,
-          message: `Sesi ujian telah memiliki data pengerjaan (${attemptsCount} mahasiswa). Status sesi diubah menjadi CANCELLED untuk menjaga integritas riwayat jawaban.`
-        });
-      } else {
-        // Jika Run_ID BELUM memiliki ATTEMPTS: tandai sebagai ARCHIVED / DELETED di Google Sheets
-        const updateRes = await forwardToAppsScript('updateRun', {
-          Run_ID: runId,
-          runId,
-          Status: 'ARCHIVED',
-          status: 'ARCHIVED',
-          Data_Status: 'DELETED'
-        });
-        return res.status(200).json({
-          status: 'success',
-          ok: true,
-          hasAttempts: false,
-          data: updateRes?.data,
-          message: 'Sesi ujian berhasil dihapus.'
+      const updateResponse = await forwardToAppsScript(
+        'updateRun',
+        updatePayload
+      );
+
+      if (!scriptSucceeded(updateResponse)) {
+        const message =
+          updateResponse?.error ||
+          updateResponse?.message ||
+          'Gagal memperbarui sesi ujian.';
+        return res.status(400).json({
+          status: 'error',
+          ok: false,
+          message,
+          error: message
         });
       }
+
+      return res.status(200).json({
+        status: 'success',
+        ok: true,
+        hasAttempts: attemptsCount > 0,
+        data: dataFrom(updateResponse),
+        message:
+          attemptsCount > 0
+            ? `Sesi memiliki data pengerjaan (${attemptsCount} mahasiswa) sehingga status diubah menjadi CANCELLED.`
+            : 'Sesi ujian berhasil diarsipkan.'
+      });
     }
 
+    // UI helper: topik yang dihapus diarsipkan agar relasi soal lama tetap aman.
     if (action === 'deleteTopic') {
-      const topicId = clientData.Topic_ID || clientData.topicId;
+      const topicId = clientData?.Topic_ID || clientData?.topicId;
       if (!topicId) {
-        return res.status(400).json({ status: 'error', ok: false, message: 'Topic_ID wajib disertakan.' });
+        return res.status(400).json({
+          status: 'error',
+          ok: false,
+          message: 'Topic_ID wajib disertakan.'
+        });
       }
 
-      // Cek apakah Topic_ID sudah digunakan di QUESTIONS
       let isUsed = false;
       try {
-        const qRes = await forwardToAppsScript('listQuestions', {});
-        if (qRes && Array.isArray(qRes.data)) {
-          isUsed = qRes.data.some((q: any) => q.Topic_ID === topicId);
+        const questionResponse = await forwardToAppsScript('listQuestions', {});
+        const questions = scriptSucceeded(questionResponse)
+          ? dataFrom(questionResponse)
+          : [];
+        if (Array.isArray(questions)) {
+          isUsed = questions.some((q: any) => q?.Topic_ID === topicId);
         }
-      } catch (err) {
-        console.warn("deleteTopic questions check error:", err);
+      } catch (error) {
+        console.warn('deleteTopic: gagal mengecek penggunaan topik', error);
       }
 
-      // Ubah Status = ARCHIVED di Google Sheets via updateTopic
-      const updateRes = await forwardToAppsScript('updateTopic', {
+      const updateResponse = await forwardToAppsScript('updateTopic', {
         Topic_ID: topicId,
         topicId,
         Status: 'ARCHIVED',
         status: 'ARCHIVED'
       });
 
+      if (!scriptSucceeded(updateResponse)) {
+        const message =
+          updateResponse?.error ||
+          updateResponse?.message ||
+          'Gagal mengarsipkan topik.';
+        return res.status(400).json({
+          status: 'error',
+          ok: false,
+          message,
+          error: message
+        });
+      }
+
       return res.status(200).json({
         status: 'success',
         ok: true,
         isUsed,
-        data: updateRes?.data,
+        data: dataFrom(updateResponse),
         message: isUsed
-          ? 'Topik ini telah digunakan pada soal Bank Soal dan berhasil diarsipkan (Status: ARCHIVED).'
-          : 'Topik berhasil dihapus/diarsipkan.'
+          ? 'Topik sudah digunakan pada soal dan berhasil diarsipkan.'
+          : 'Topik berhasil diarsipkan.'
       });
     }
 
-    if (action === 'getExamQuestions') {
-      const examId = clientData.Exam_ID || clientData.examId;
-      const store = loadExamQuestionsStore();
-      const list = store[examId] || [];
+    // Semua action lainnya diteruskan langsung ke Apps Script / Google Sheets.
+    const scriptResponse = await forwardToAppsScript(action, clientData);
 
-      // Baca teks soal dari database lokal agar respon instan dan tidak memblokir koneksi
-      let allQ: any[] = [];
-      try {
-        if (fs.existsSync(dbSheetsStorePath)) {
-          const dbData = JSON.parse(fs.readFileSync(dbSheetsStorePath, 'utf-8'));
-          if (Array.isArray(dbData.QUESTIONS)) {
-            const versionsMap: Record<string, any> = {};
-            if (Array.isArray(dbData.QUESTION_VERSIONS)) {
-              dbData.QUESTION_VERSIONS.forEach((v: any) => {
-                versionsMap[v.Version_ID] = v;
-              });
-            }
-            allQ = dbData.QUESTIONS.map((q: any) => {
-              const curVer = versionsMap[q.Current_Version_ID] || {};
-              return {
-                ...q,
-                Current_Version: curVer,
-                Question_Text: curVer.Question_Text || q.Question_Text || '',
-                Default_Points: curVer.Default_Points !== undefined ? curVer.Default_Points : q.Default_Points
-              };
-            });
-          }
-        }
-      } catch (err) {
-        console.warn("getExamQuestions local db read error:", err);
-      }
+    if (!scriptSucceeded(scriptResponse)) {
+      const message =
+        scriptResponse?.error ||
+        scriptResponse?.message ||
+        'Error dari Google Apps Script';
 
-      const enriched = list.map((eq: any, idx: number) => {
-        const matched = allQ.find((q: any) =>
-          q.Current_Version_ID === eq.Version_ID ||
-          q.Version_ID === eq.Version_ID ||
-          q.Question_ID === eq.Question_ID ||
-          (q.Current_Version && q.Current_Version.Version_ID === eq.Version_ID)
-        );
-        const curVer = matched?.Current_Version || {};
-        return {
-          ...eq,
-          Exam_Question_ID: eq.Exam_Question_ID || `EQ-${examId}-${idx + 1}`,
-          Exam_ID: examId,
-          Version_ID: eq.Version_ID,
-          Question_Number: Number(eq.Question_Number) || (idx + 1),
-          Points: Number(eq.Points) || (matched?.Default_Points !== undefined ? matched.Default_Points : (curVer.Default_Points || 2)),
-          Is_Required: eq.Is_Required !== false,
-          Question_ID: eq.Question_ID || matched?.Question_ID || '',
-          Question_Text: eq.Question_Text || matched?.Question_Text || curVer.Question_Text || '',
-          Question_Type: eq.Question_Type || matched?.Question_Type || 'ESSAY',
-          Difficulty: eq.Difficulty || matched?.Difficulty || 'MEDIUM',
-          Default_Points: matched?.Default_Points !== undefined ? matched.Default_Points : curVer.Default_Points,
-          Image_URL: eq.Image_URL || matched?.Image_URL || curVer.Image_URL || '',
-          Answer_Guide: eq.Answer_Guide || matched?.Answer_Guide || curVer.Answer_Guide || '',
-          Explanation: eq.Explanation || matched?.Explanation || curVer.Explanation || '',
-          Topic_Name: eq.Topic_Name || matched?.Topic_Name || '',
-          Version_Number: Number(eq.Version_Number || matched?.Version_Number || curVer.Version_Number) || 1
-        };
-      });
-
-      return res.status(200).json({
-        status: 'success',
-        ok: true,
-        data: enriched,
-        message: 'Berhasil mengambil daftar soal ujian'
-      });
-    }
-
-    // 4. Menambahkan secret HANYA di server
-    // 5. POST server-to-server ke Google Apps Script
-    // 6. Mengirim struktur:
-    // {
-    //   "action": "NAMA_ACTION",
-    //   "secret": "SERVER_SECRET",
-    //   "data": {},
-    //   "payload": {}
-    // }
-    const requestPayload: any = {
-      action,
-      data: clientData,
-      payload: clientData
-    };
-
-    if (appsScriptSecret) {
-      requestPayload.secret = appsScriptSecret;
-    }
-
-    // Teruskan token jika ada (misal session token admin)
-    if (body?.token) {
-      requestPayload.token = body.token;
-    }
-
-    // Abort controller
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 90000);
-
-    let scriptResponse: Response;
-    try {
-      scriptResponse = await fetch(appsScriptUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestPayload),
-        redirect: 'manual',
-        signal: controller.signal
-      });
-
-      // 9. Menangani redirect Google Apps Script (302/303 GET)
-      let redirectCount = 0;
-      while (
-        scriptResponse.status >= 300 &&
-        scriptResponse.status < 400 &&
-        scriptResponse.headers.get('location') &&
-        redirectCount < 5
-      ) {
-        redirectCount++;
-        const redirectUrl = scriptResponse.headers.get('location')!;
-        scriptResponse = await fetch(redirectUrl, {
-          method: 'GET',
-          signal: controller.signal
-        });
-      }
-    } catch (fetchErr: any) {
-      if (fetchErr.name === 'AbortError') {
-        return res.status(504).json({
-          status: 'error',
-          ok: false,
-          message: 'Koneksi ke Google Apps Script timeout (>90 detik).'
-        });
-      }
-      throw fetchErr;
-    } finally {
-      clearTimeout(timeoutId);
-    }
-
-    // 7. Membaca respons Apps Script dengan text() terlebih dahulu
-    const rawText = await scriptResponse.text();
-
-    // 8. Validasi JSON sebelum JSON.parse
-    const trimmedText = (rawText || '').trim();
-    let parsedData: any = null;
-    let isValidJson = false;
-
-    if (
-      (trimmedText.startsWith('{') && trimmedText.endsWith('}')) ||
-      (trimmedText.startsWith('[') && trimmedText.endsWith(']'))
-    ) {
-      try {
-        parsedData = JSON.parse(trimmedText);
-        isValidJson = true;
-      } catch {
-        isValidJson = false;
-      }
-    }
-
-    if (!isValidJson || parsedData === null) {
-      console.error("ADMIN BACKEND APPS SCRIPT NON-JSON RESPONSE:", trimmedText.substring(0, 300));
-      if (trimmedText.startsWith('<!DOCTYPE') || trimmedText.toLowerCase().includes('<html')) {
-        return res.status(502).json({
-          status: 'error',
-          ok: false,
-          message: 'Google Apps Script mengembalikan halaman HTML. Pastikan deployment Web App Apps Script disetel ke akses "Anyone" (Siapa saja) dan URL benar.'
-        });
-      }
-      return res.status(502).json({
-        status: 'error',
-        ok: false,
-        message: `Google Apps Script mengembalikan respon non-JSON: ${trimmedText.substring(0, 200)}`
-      });
-    }
-
-    // 10. Jika backend mengembalikan error, teruskan pesan error sebenarnya ke frontend
-    if (parsedData.ok === false || parsedData.status === 'error') {
-      const errMsg = parsedData.error || parsedData.message || 'Error dari Google Apps Script';
       return res.status(400).json({
         status: 'error',
         ok: false,
-        message: errMsg,
-        error: errMsg
+        message,
+        error: message
       });
     }
 
-    // 11. Teruskan data asli dari Google Sheets ke frontend (jangan gunakan dummy)
-    let resultData = parsedData.data !== undefined ? parsedData.data : parsedData;
+    let resultData = dataFrom(scriptResponse);
 
-    // Sinkronisasi lokal store untuk setExamQuestions
-    if (action === 'setExamQuestions') {
-      const examId = clientData.Exam_ID || clientData.examId;
-      if (examId) {
-        const store = loadExamQuestionsStore();
-        const savedList = (Array.isArray(resultData) && resultData.length > 0)
-          ? resultData
-          : (Array.isArray(clientData.questions) ? clientData.questions : []);
-        store[examId] = savedList;
-        saveExamQuestionsStore(store);
-      }
-    }
-
-    // Enrich listExams dengan Total_Questions, Total_Points, dan questions
-    if (action === 'listExams' && Array.isArray(resultData)) {
-      const store = loadExamQuestionsStore();
-      resultData = resultData.map((e: any) => {
-        const eqList = store[e.Exam_ID] || [];
-        const totalPoints = eqList.reduce((sum: number, q: any) => sum + (Number(q.Points) || 0), 0);
-        const totalQ = eqList.length > 0 ? eqList.length : (Number(e.Total_Questions) || 0);
-        return {
-          ...e,
-          Total_Questions: totalQ,
-          Total_Points: totalPoints > 0 ? totalPoints : (Number(e.Total_Points) || 0),
-          questions: eqList
-        };
-      });
-    }
-
-    // Enrich listQuestions dengan meratakan properti Current_Version ke level atas
+    // Buat data Bank Soal mudah dibaca komponen UI tanpa mengubah database.
     if (action === 'listQuestions' && Array.isArray(resultData)) {
-      resultData = resultData.map((q: any) => {
-        const ver = q.Current_Version || {};
-        return {
-          ...q,
-          Question_Text: q.Question_Text || ver.Question_Text || '',
-          Default_Points: q.Default_Points !== undefined ? q.Default_Points : (ver.Default_Points !== undefined ? ver.Default_Points : null),
-          Version_Number: Number(q.Version_Number || ver.Version_Number) || 1,
-          Image_URL: q.Image_URL || ver.Image_URL || '',
-          Answer_Guide: q.Answer_Guide || ver.Answer_Guide || '',
-          Explanation: q.Explanation || ver.Explanation || ''
-        };
-      });
+      resultData = resultData.map(normalizeQuestion);
+    }
+
+    // EXAM_QUESTIONS tetap dibaca dari Google Sheets.
+    // Jika Apps Script hanya mengembalikan Version_ID, isi teks soal dari
+    // listQuestions agar modal Kelola Soal tetap mudah dibaca.
+    if (action === 'getExamQuestions' && Array.isArray(resultData)) {
+      const needsDetails = resultData.some(
+        (q: any) => !q?.Question_Text || !q?.Question_Type
+      );
+
+      if (needsDetails && resultData.length > 0) {
+        try {
+          const questionsResponse = await forwardToAppsScript(
+            'listQuestions',
+            {}
+          );
+
+          const bankQuestions = scriptSucceeded(questionsResponse)
+            ? dataFrom(questionsResponse)
+            : [];
+
+          if (Array.isArray(bankQuestions)) {
+            const normalizedBank = bankQuestions.map(normalizeQuestion);
+
+            resultData = resultData.map((eq: any, index: number) => {
+              const versionId = eq?.Version_ID;
+              const matched = normalizedBank.find(
+                (q: any) =>
+                  q?.Current_Version_ID === versionId ||
+                  q?.Version_ID === versionId ||
+                  (q?.Current_Version &&
+                    q.Current_Version.Version_ID === versionId) ||
+                  (eq?.Question_ID && q?.Question_ID === eq.Question_ID)
+              );
+
+              return {
+                ...eq,
+                Exam_Question_ID:
+                  eq?.Exam_Question_ID ||
+                  `EQ-${clientData?.Exam_ID || clientData?.examId || 'EXAM'}-${index + 1}`,
+                Question_Number:
+                  Number(eq?.Question_Number) || index + 1,
+                Points:
+                  Number(eq?.Points) ||
+                  Number(matched?.Default_Points) ||
+                  0,
+                Question_ID: eq?.Question_ID || matched?.Question_ID || '',
+                Question_Text:
+                  eq?.Question_Text || matched?.Question_Text || '',
+                Question_Type:
+                  eq?.Question_Type || matched?.Question_Type || '',
+                Difficulty:
+                  eq?.Difficulty || matched?.Difficulty || '',
+                Topic_Name:
+                  eq?.Topic_Name || matched?.Topic_Name || '',
+                Image_URL:
+                  eq?.Image_URL || matched?.Image_URL || '',
+                Answer_Guide:
+                  eq?.Answer_Guide || matched?.Answer_Guide || '',
+                Explanation:
+                  eq?.Explanation || matched?.Explanation || '',
+                Version_Number:
+                  Number(
+                    eq?.Version_Number || matched?.Version_Number
+                  ) || 1
+              };
+            });
+          }
+        } catch (error) {
+          // Data relasi ujian tetap dikirim walau enrichment teks gagal.
+          console.warn('getExamQuestions enrichment gagal', error);
+        }
+      }
     }
 
     return res.status(200).json({
       status: 'success',
       ok: true,
       data: resultData,
-      message: parsedData.message || 'Berhasil'
+      message: scriptResponse?.message || 'Berhasil'
     });
   } catch (error: any) {
-    console.error("ADMIN BACKEND HANDLER ERROR:", error);
+    console.error('ADMIN BACKEND HANDLER ERROR:', error);
+
     return res.status(500).json({
       status: 'error',
       ok: false,
-      message: error.message || 'Terjadi kesalahan internal server saat memproses data admin.'
+      message:
+        error?.message ||
+        'Terjadi kesalahan internal server saat memproses data admin.'
     });
   }
 }
