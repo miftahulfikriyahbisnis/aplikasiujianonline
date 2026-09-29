@@ -57,21 +57,13 @@ export const ExamResults: React.FC = () => {
           setRuns(list);
           if (list.length > 0 && !selectedRunId) {
             setSelectedRunId(list[0].Run_ID);
-          } else if (list.length === 0) {
-            setLoading(false);
           }
-        } else {
-          setLoading(false);
         }
-      })
-      .catch(() => setLoading(false));
+      });
   };
 
   const fetchResults = () => {
-    if (!selectedRunId) {
-      setLoading(false);
-      return;
-    }
+    if (!selectedRunId) return;
     setLoading(true);
     fetch('/api/admin/backend', {
       method: 'POST',
