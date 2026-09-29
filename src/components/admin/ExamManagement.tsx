@@ -32,7 +32,7 @@ export const ExamManagement: React.FC = () => {
   const [runs, setRuns] = useState<ExamRunItem[]>([]);
   const [courses, setCourses] = useState<CourseItem[]>([]);
   const [selectedExam, setSelectedExam] = useState<any | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);\n  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Modals
   const [showCreateExamModal, setShowCreateExamModal] = useState(false);
@@ -131,17 +131,17 @@ export const ExamManagement: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'listExams', data: {} })
-      }).then(r => r.json()).catch(() => ({ ok: false, data: [] })),
+      }).then(async r => {\n        const body = await r.json();\n        if (!r.ok || body?.ok === false || body?.status === 'error') {\n          throw new Error(body?.message || 'Gagal memuat daftar ujian.');\n        }\n        return body;\n      }),
       fetch('/api/admin/backend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'listRuns', data: {} })
-      }).then(r => r.json()).catch(() => ({ ok: false, data: [] })),
+      }).then(async r => {\n        const body = await r.json();\n        if (!r.ok || body?.ok === false || body?.status === 'error') {\n          throw new Error(body?.message || 'Gagal memuat daftar sesi ujian.');\n        }\n        return body;\n      }),
       fetch('/api/admin/backend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'listCourses', data: {} })
-      }).then(r => r.json()).catch(() => ({ ok: false, data: [] }))
+      }).then(async r => {\n        const body = await r.json();\n        if (!r.ok || body?.ok === false || body?.status === 'error') {\n          throw new Error(body?.message || 'Gagal memuat mata kuliah.');\n        }\n        return body;\n      })
     ])
       .then(([examsRes, runsRes, coursesRes]) => {
         let loadedExams: any[] = [];
@@ -773,7 +773,20 @@ export const ExamManagement: React.FC = () => {
               {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-sky-800" />}
             </h2>
             <div className="space-y-2.5">
-              {exams.length === 0 && !loading && (
+              {loadError && !loading && (
+                <div className="p-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="font-semibold">Data belum berhasil dimuat.</div>
+                  <div className="mt-1">{loadError}</div>
+                  <button
+                    type="button"
+                    onClick={fetchExamsAndRuns}
+                    className="mt-3 px-3 py-1.5 rounded-md bg-white border border-red-300 hover:bg-red-100 font-semibold"
+                  >
+                    Coba Lagi
+                  </button>
+                </div>
+              )}
+              {exams.length === 0 && !loading && !loadError && (
                 <div className="p-6 text-center text-xs text-slate-500 border border-dashed border-slate-200 rounded-lg">
                   Belum ada ujian. Klik &ldquo;Buat Blueprint Ujian Baru&rdquo; untuk memulai.
                 </div>
