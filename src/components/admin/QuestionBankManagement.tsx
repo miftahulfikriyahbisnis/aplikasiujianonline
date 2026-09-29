@@ -120,19 +120,26 @@ export const QuestionBankManagement: React.FC = () => {
 
   const fetchQuestions = () => {
     setLoading(true);
+    const params = new URLSearchParams();
+    if (filterBank) params.set('bankId', filterBank);
+    if (filterTopic) params.set('topicId', filterTopic);
+    if (filterType) params.set('questionType', filterType);
+    if (filterDifficulty) params.set('difficulty', filterDifficulty);
+    if (filterStatus) params.set('status', filterStatus);
+
     fetch('/api/admin/backend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'listQuestions',
         data: {
-          bankId: filterBank || undefined,
-          Bank_ID: filterBank || undefined,
-          topicId: filterTopic || undefined,
-          Topic_ID: filterTopic || undefined,
-          questionType: filterType || undefined,
-          difficulty: filterDifficulty || undefined,
-          status: filterStatus && filterStatus !== 'ALL' ? filterStatus : undefined
+          bankId: filterBank,
+          Bank_ID: filterBank,
+          topicId: filterTopic,
+          Topic_ID: filterTopic,
+          questionType: filterType,
+          difficulty: filterDifficulty,
+          status: filterStatus
         }
       })
     })
@@ -151,44 +158,36 @@ export const QuestionBankManagement: React.FC = () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'listCourses', data: {} })
-    })
-      .then(r => r.json())
-      .then(r => { if (r.status === 'success' || r.ok) setCourses(r.data || []); })
-      .catch(() => {});
+    }).then(r => r.json()).then(r => { if (r.status === 'success' || r.ok) setCourses(r.data || []); });
 
     fetch('/api/admin/backend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'listQuestionBanks', data: {} })
-    })
-      .then(r => r.json())
-      .then(r => {
-        if (r.status === 'success' || r.ok) {
-          const list = Array.isArray(r.data) ? r.data : [];
-          setBanks(list);
-          if (list.length > 0) {
-            setMcqBankId(list[0].Bank_ID);
-            setEssayBankId(list[0].Bank_ID);
-          }
+    }).then(r => r.json()).then(r => {
+      if (r.status === 'success' || r.ok) {
+        const list = Array.isArray(r.data) ? r.data : [];
+        setBanks(list);
+        if (list.length > 0) {
+          setMcqBankId(list[0].Bank_ID);
+          setEssayBankId(list[0].Bank_ID);
         }
-      })
-      .catch(() => {});
+      }
+    });
 
     fetch('/api/admin/backend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'listTopics', data: {} })
-    })
-      .then(r => r.json())
-      .then(r => {
-        if (r.status === 'success' || r.ok) {
-          const list = Array.isArray(r.data) ? r.data : [];
-          setTopics(list);
-          setMcqTopicId('');
-          setEssayTopicId('');
-        }
-      })
-      .catch(() => {});
+    }).then(r => r.json()).then(r => {
+      if (r.status === 'success' || r.ok) {
+        const list = Array.isArray(r.data) ? r.data : [];
+        setTopics(list);
+        // Topic is optional by default
+        setMcqTopicId('');
+        setEssayTopicId('');
+      }
+    });
   }, []);
 
   useEffect(() => {
