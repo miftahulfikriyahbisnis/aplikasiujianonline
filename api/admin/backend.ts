@@ -304,6 +304,56 @@ export default async function handler(req: any, res: any) {
 
     let resultData = dataFrom(scriptResponse);
 
+    // Lengkapi daftar ujian langsung dari EXAM_QUESTIONS di Google Sheets.
+    // Ini mencegah kartu ujian menampilkan 0 soal padahal relasinya ada di database.
+    if (action === 'listExams' && Array.isArray(resultData) && resultData.length > 0) {
+      resultData = await Promise.all(
+        resultData.map(async (exam: any) => {
+          const existingTotal = Number(exam?.Total_Questions);
+          const alreadyHasQuestions = Array.isArray(exam?.questions);
+
+          if (alreadyHasQuestions && Number.isFinite(existingTotal) && existingTotal === exam.questions.length) {
+            return exam;
+          }
+
+          try {
+            const eqResponse = await forwardToAppsScript('getExamQuestions', {
+              Exam_ID: exam?.Exam_ID,
+              examId: exam?.Exam_ID
+            });
+
+            if (scriptSucceeded(eqResponse)) {
+              const eqData = dataFrom(eqResponse);
+              const questions = Array.isArray(eqData) ? eqData : [];
+              const totalPoints = questions.reduce(
+                (sum: number, q: any) => sum + (Number(q?.Points) || 0),
+                0
+              );
+
+              return {
+                ...exam,
+                Total_Questions: questions.length,
+                Total_Points:
+                  totalPoints > 0
+                    ? totalPoints
+                    : Number(exam?.Total_Points) || 0,
+                questions
+              };
+            }
+          } catch (error) {
+            console.warn('listExams enrichment gagal untuk', exam?.Exam_ID, error);
+          }
+
+          return {
+            ...exam,
+            Total_Questions:
+              Number.isFinite(existingTotal) ? existingTotal : 0,
+            questions: Array.isArray(exam?.questions) ? exam.questions : []
+          };
+        })
+      );
+    }
+
     // Buat data Bank Soal mudah dibaca komponen UI tanpa mengubah database.
     if (action === 'listQuestions' && Array.isArray(resultData)) {
       resultData = resultData.map(normalizeQuestion);
