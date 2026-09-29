@@ -39,29 +39,13 @@ export const ViolationsManagement: React.FC = () => {
       .then(r => r.json())
       .then(r => {
         if (r.status === 'success' || r.ok) {
-          const list = Array.isArray(r.data) ? r.data : [];
-          setRuns(list);
-          const openRun = list.find((x: any) => x.Status === 'OPEN');
-          if (openRun && !selectedRunId) {
-            setSelectedRunId(openRun.Run_ID);
-          } else if (list.length > 0 && !selectedRunId) {
-            setSelectedRunId(list[0].Run_ID);
-          } else if (list.length === 0) {
-            setLoading(false);
-          }
-        } else {
-          setLoading(false);
+          setRuns(Array.isArray(r.data) ? r.data : []);
         }
       })
-      .catch(() => setLoading(false));
+      .catch(console.error);
   };
 
   const fetchViolations = () => {
-    if (!selectedRunId) {
-      setLoading(false);
-      setViolations([]);
-      return;
-    }
     setLoading(true);
     fetch('/api/admin/backend', {
       method: 'POST',
@@ -97,9 +81,6 @@ export const ViolationsManagement: React.FC = () => {
 
   useEffect(() => {
     fetchRuns();
-  }, []);
-
-  useEffect(() => {
     fetchViolations();
   }, [selectedRunId, filterStatus]);
 
