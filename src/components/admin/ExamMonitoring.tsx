@@ -17,9 +17,8 @@ export const ExamMonitoring: React.FC = () => {
   const [monitorData, setMonitorData] = useState<any[]>([]);
   const [runs, setRuns] = useState<ExamRunItem[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string>('');
-  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(true);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   // Modal Permission
   const [showPermModal, setShowPermModal] = useState(false);
@@ -50,23 +49,14 @@ export const ExamMonitoring: React.FC = () => {
             setSelectedRunId(openRun.Run_ID);
           } else if (list.length > 0 && !selectedRunId) {
             setSelectedRunId(list[0].Run_ID);
-          } else if (list.length === 0) {
-            setLoading(false);
           }
-        } else {
-          setLoading(false);
         }
-      })
-      .catch(() => setLoading(false));
+      });
   };
 
   const fetchMonitoring = () => {
-    if (!selectedRunId) {
-      setLoading(false);
-      return;
-    }
+    if (!selectedRunId) return;
     setLoading(true);
-    setError(null);
     fetch('/api/admin/backend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -78,14 +68,8 @@ export const ExamMonitoring: React.FC = () => {
       .then(r => r.json())
       .then(r => {
         if (r.status === 'success' || r.ok) {
-          setMonitorData(Array.isArray(r.data) ? r.data : []);
-        } else {
-          setError(r.message || 'Gagal memuat status pengawasan sesi.');
+          setMonitorData(r.data);
         }
-      })
-      .catch(err => {
-        console.error(err);
-        setError('Terjadi kendala saat menghubungkan ke database Google Sheets.');
       })
       .finally(() => setLoading(false));
   };
