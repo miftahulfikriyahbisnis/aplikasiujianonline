@@ -88,29 +88,17 @@ export default async function handler(req: any, res: any) {
       const timeoutId = setTimeout(() => controller.abort(), 45000);
 
       try {
-        let response = await fetch(appsScriptUrl, {
+        // Biarkan fetch mengikuti redirect Apps Script secara otomatis.
+        // Untuk Web App Apps Script, respons POST biasanya diarahkan ke
+        // googleusercontent.com; mode "follow" lebih stabil di Vercel
+        // daripada menangani redirect satu-per-satu secara manual.
+        const response = await fetch(appsScriptUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
-          redirect: 'manual',
+          redirect: 'follow',
           signal: controller.signal
         });
-
-        let redirectCount = 0;
-        while (
-          response.status >= 300 &&
-          response.status < 400 &&
-          response.headers.get('location') &&
-          redirectCount < 5
-        ) {
-          redirectCount += 1;
-          const redirectUrl = response.headers.get('location')!;
-          response = await fetch(redirectUrl, {
-            method: 'GET',
-            redirect: 'manual',
-            signal: controller.signal
-          });
-        }
 
         const rawText = await response.text();
         const text = (rawText || '').trim();
@@ -120,8 +108,9 @@ export default async function handler(req: any, res: any) {
         }
 
         if (text.startsWith('<!DOCTYPE') || text.toLowerCase().includes('<html')) {
+          const finalUrl = response.url || appsScriptUrl;
           throw new Error(
-            'Google Apps Script mengembalikan halaman HTML. Pastikan deployment Web App disetel ke akses "Anyone" dan URL deployment benar.'
+            `Google Apps Script mengembalikan halaman HTML (HTTP ${response.status}, tujuan akhir: ${finalUrl}). Deployment sudah "Anyone"; masalah kemungkinan berada pada alur redirect/response Apps Script.`
           );
         }
 
